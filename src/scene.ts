@@ -1,7 +1,7 @@
 // `\begin{scene}...\end{scene}` → SceneSpec (objects + step-tagged events).
 import { Reader, parseKeyVals, splitTop } from './reader.ts';
 import { texToSvg } from './math.ts';
-import { resolveColor, type Ctx } from './inline.ts';
+import { resolveColor, expandMacro, type Ctx } from './inline.ts';
 import { layout, alignTo, chemReady, valenceLp, bestFacing, rotateMol, translateMol, molCentre, type MolGeom, type LayoutOpts, type Atom } from './chem.ts';
 import { COMMANDS, ACTION_SPECS, COMMON_KEYS, suggest } from './schema.ts';
 
@@ -102,7 +102,8 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
   const o = parseKeyVals(opts);
   const size = typeof o.size === 'string' ? splitTop(o.size).map(Number) : [14, 6];
   const spec: SceneSpec = { size: [size[0] || 14, size[1] || 6], objects: [], events: [] };
-  const r = new Reader(body);
+  let r = new Reader(body);
+  let expansions = 0;
   const byId = new Map<string, SceneObj>();
   const alias = new Map<string, string>(); // user-facing id → current object id (after transforms)
   const cur = (id: string) => alias.get(id) ?? id;
@@ -171,12 +172,19 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
     r.skipSpace();
     if (r.done) break;
     if (r.peek() !== '\\') {
-      ctx.warn(`scene: ignoring stray text "${body.slice(r.pos, r.pos + 20).trim()}…"`);
+      ctx.warn(`scene: ignoring stray text "${r.src.slice(r.pos, r.pos + 20).trim()}…"`);
       while (!r.done && r.peek() !== '\\') r.pos++;
       continue;
     }
     const name = r.readCommandName();
     if (name === 'pause') { ctx.steps.pause(); continue; }
+    // The deck's own \newcommand shorthands work inside scenes (e.g. a house style for arrows).
+    if (!(name in COMMANDS) && !(name in ACTIONS) && name !== 'ReactionArrow' && ctx.macros[name]) {
+      if (++expansions > 2000) { ctx.warn(`scene: macro \\${name} expands forever`); break; }
+      const rest = expandMacro(r, ctx.macros[name]) + r.src.slice(r.pos);
+      r = new Reader(rest);
+      continue;
+    }
 
     const kv = parseKeyVals(r.readOptional());
     validate(name, kv, ctx);

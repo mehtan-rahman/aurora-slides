@@ -163,3 +163,29 @@ test('Transform flow=false opts out of the electron-flow phase', () => {
   assert.equal(ev(', flow=false').flow, false);
   assert.equal(deck(src(', flow=false')).warnings.length, 0);
 });
+
+test('deck macros expand inside scenes (mechanism shorthands)', () => {
+  const d = deck(`\\begin{frame}\\begin{scene}
+    \\Molecule[id=nu, at={-5,0}, lp=auto]{[OH-:1]}\\Molecule[id=s, at={1,0}, lp={4}]{[CH3:2][Br:4]}
+    \\pause
+    \\attack{1}{2}
+    \\leave{2}{4}
+    \\pause\\Transform[id={nu,s}]{[OH:1][CH3:2].[Br-:4]}
+  \\end{scene}\\end{frame}`,
+  '\\newcommand{\\attack}[2]{\\CurlyArrow[from=lp:#1, to=#2, side=above]}\n\\newcommand{\\leave}[2]{\\CurlyArrow[from=#1-#2, to=#2, with, delay=0.3]}');
+  assert.equal(d.warnings.length, 0, d.warnings.map((w) => w.message).join('\n'));
+  const arrows = d.scenes[0].objects.filter((o) => o.kind === 'CurlyArrow');
+  assert.equal(arrows.length, 2);
+  assert.equal(arrows[0].props.from, 'lp:1');
+  assert.equal(arrows[0].props.side, 'above');
+  assert.equal(arrows[1].props.from, '2-4');
+  assert.equal(d.scenes[0].events.find((e) => e.target === arrows[1].id)!.with, true);
+});
+
+test('curly arrow placement keys validate', () => {
+  const d = deck(`\\begin{frame}\\begin{scene}\\Molecule[id=m]{[CH3:1][Br:2]}
+    \\CurlyArrow[from=1-2, to=2, side=below, out=90, in=45, looseness=1.2]
+    \\CurlyArrow[from=1-2, to=2, sied=below]\\end{scene}\\end{frame}`);
+  assert.equal(d.warnings.length, 1);
+  assert.match(d.warnings[0].message, /did you mean "side"/);
+});

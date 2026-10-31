@@ -189,11 +189,20 @@ replace the placeholder with a static TikZ rendering of the scene's final state.
 - **Rendering.** We emit our own SVG: bonds as paths, atom labels as text or
   MathJax. That way Create and Write apply, and every atom is addressable by map number.
 - **Curly arrows.** Endpoints resolve to atoms (`2`), bonds (`2=3`, i.e. the bond
-  midpoint), or lone pairs (`lp:5`). Textbook habits are built in: tails leave the
-  lone pair that faces the target, tangent to it; heads stop at the label edge (or
-  arc over an `H₃C` label onto the carbon); bond → own-atom arrows hug the open
-  side of the bond. Long arrows bow gently (≈13% of their length). A half-head
-  gives single-electron (fishhook) arrows.
+  midpoint), or lone pairs (`lp:5`). Each arrow is a cubic Bézier built from an
+  explicit tail tangent and head tangent:
+  - Tails sit on the electrons: just outside the lone pair facing the target, or
+    on the bond's outer line.
+  - Heads stop at the label edge, or arc over an `H₃C` label onto the carbon.
+  - Long arrows leave and arrive about 22° off the chord. The bow side is the one
+    with more room at the target, with ties going over the top.
+  - Bond → own-atom arrows are symmetric arches (about 66° off the chord at both
+    ends) from the middle of the visible bond to the atom's free shoulder, on the
+    locally less crowded side.
+  - TikZ-style overrides: `side`, `out`, `in` and `looseness`. A half-head gives
+    single-electron (fishhook) arrows.
+- **Macros.** The deck's `\newcommand`s expand inside scenes, so authors can build
+  their own mechanism vocabulary on top of the primitives.
 - **Orientation.** Before the first `\Transform` that follows a batch of curly
   arrows, the compiler turns freshly declared reactants (30° steps, so wedges stay
   valid): the attacked atom's widest gap faces the nucleophile, or, when a bond
@@ -206,8 +215,9 @@ replace the placeholder with a static TikZ rendering of the scene's final state.
 - **Electron flow.** When curly arrows lead into a `\Transform`, it plays as arrow
   pushing (`flow=false` opts out). Each arrow's electron pair (two dots, starting
   as the actual lone pair or on the bond) rides the arrow, which is consumed from
-  the tail and stays pinned to its atoms as they move. A source bond retracts
-  toward the receiving atom. On arrival the pair settles into the nearest new
+  the tail and stays pinned to its atoms as they move. A breaking bond lets go
+  at the leaving group's end and retracts into the atom that stays. Without arrows,
+  it lets go of whichever atom travels further. On arrival the pair settles into the nearest new
   lone-pair site, grows a π bond from the bond's middle, or, for a nucleophile,
   drifts to the forming σ bond's midpoint and the bond grows out from it. Charges
   leave with and arrive with the pairs. Timeline (fraction of the run, default

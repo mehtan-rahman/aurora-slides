@@ -96,6 +96,10 @@ aurora reference                    # every scene command, key, and default
 - Lone pairs carry through `\Transform` (recounted). Use `lp={5:0}` to hide them on atom 5.
 - `lp=auto` draws lone pairs on all heteroatoms. Use `lp={3}` for specific atoms,
   or `lp={3:2}` to give an explicit count.
+- Arrow placement is automatic. If one looks wrong, override it with `side=above|below|left|right`,
+  `out=`/`in=` (degrees, TikZ-style: `in=90` means the head arrives from above), or `looseness=`.
+- Define shorthands with `\newcommand` in the preamble; they expand inside scenes, e.g.
+  `\newcommand{\attack}[2]{\CurlyArrow[from=lp:#1, to=#2]}`.
 - Reaction conditions: `\ReactionArrow[from={-1,0}, to={1,0}, above={\ce{H2O}}, below={\Delta}]`.
   `\ce{}` (mhchem) also works in `\MathTex` and in `$…$`.
 

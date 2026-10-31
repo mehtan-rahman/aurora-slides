@@ -120,7 +120,7 @@ export const COMMANDS: Record<string, CommandSpec> = {
   },
   CurlyArrow: {
     summary: 'Electron-pushing arrow between atom refs: N (atom), N-M (bond / new-bond midpoint), lp:N (lone pair).', intro: 'create',
-    keys: { from: { type: 'atom ref', desc: 'Electron source: lp:5, 2=3 (π bond), 2-4 (σ bond)' }, to: { type: 'atom ref', desc: 'Electron sink: 3 (atom), 5-2 (forming bond)' }, bend: { type: 'number', desc: 'Curvature; sign flips side', default: '1 (away from molecule)' }, fishhook: { type: 'flag', desc: 'Single-electron half-head' }, color: { type: color, desc: 'Colour', default: 'orange' }, width: { type: 'px', desc: 'Stroke width', default: '3.5' } },
+    keys: { from: { type: 'atom ref', desc: 'Electron source: lp:5, 2=3 (π bond), 2-4 (σ bond)' }, to: { type: 'atom ref', desc: 'Electron sink: 3 (atom), 5-2 (forming bond)' }, bend: { type: 'number', desc: 'Curvature; sign flips side', default: '1' }, side: { type: 'above | below | left | right', desc: 'Which side the arc bows to (default: the open side, else over the top)' }, out: { type: 'degrees', desc: 'Direction the tail leaves in (0 = right, 90 = up), like TikZ' }, in: { type: 'degrees', desc: 'Side the head arrives from (90 = from above), like TikZ' }, looseness: { type: 'number', desc: 'Scale the arc control lengths', default: '1' }, fishhook: { type: 'flag', desc: 'Single-electron half-head' }, color: { type: color, desc: 'Colour', default: 'orange' }, width: { type: 'px', desc: 'Stroke width', default: '3.5' } },
     example: '\\CurlyArrow[from=lp:5, to=2]',
   },
   ReactionArrow: {

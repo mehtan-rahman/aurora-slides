@@ -129,6 +129,10 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
   (`[C:2]`) name atoms.
 - `\CurlyArrow[from=lp:5, to=2]`: refs are `N` (atom), `N-M`/`N=M` (bond, or a
   forming bond's midpoint), and `lp:N` (lone pair). Add `fishhook` for radical chemistry.
+  Placement is automatic: tails sit on the electrons, heads aim at the receiving
+  atom, and bond → atom arrows arch from the bond's middle. To override, use
+  TikZ-style keys: `side=above|below|left|right`, `out=`/`in=` angles in degrees,
+  and `looseness=`.
 - `\Transform[id={a,b}]{product SMILES}` animates the step as **arrow pushing**.
   Each curly arrow's electron pair travels along it and uses the arrow up as it
   goes. A bond giving up its electrons shrinks toward the atom receiving them. On
@@ -140,6 +144,13 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
   pairs point at the target, and a leaving group sits anti to the attack (true
   backside SN2). Give `rotate=` or `orient=false` to place a molecule yourself.
 - `\ReactionArrow[above={\ce{H2O}}, below={\Delta}]`, and `\ce{…}` (mhchem) in any maths.
+- Your own `\newcommand`s work inside scenes, so you can define a house style once:
+
+  ```latex
+  \newcommand{\attack}[2]{\CurlyArrow[from=lp:#1, to=#2]}
+  \newcommand{\leave}[2]{\CurlyArrow[from=#1-#2, to=#2, with, delay=0.3]}
+  % in a scene:  \attack{6}{1}  \leave{1}{5}
+  ```
 
 ## Gallery
 

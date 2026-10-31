@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Breaking bonds retract to nothing, starting from the leaving group's end.
+- Curly arrows:
+  - Bond → atom arrows are symmetric arches from the bond's middle.
+  - The attack side is chosen by room at the target, so arrows no longer land on wedges.
+  - Heads keep clear of bare carbons.
+  - New keys: `side`, `out`, `in`, `looseness`.
+- `\newcommand` macros expand inside scenes, for mechanism shorthands.
 - **Arrow-pushing animation.** When curly arrows lead into `\Transform`, the step plays like a textbook mechanism:
   - Electron pairs travel along the arrows, using them up as they go.
   - Bonds shrink toward the atom receiving their electrons, and pairs land as lone pairs or new π/σ bonds.

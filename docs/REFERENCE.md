@@ -269,7 +269,11 @@ Electron-pushing arrow between atom refs: N (atom), N-M (bond / new-bond midpoin
 |---|---|---|---|
 | `from` | atom ref |  | Electron source: lp:5, 2=3 (π bond), 2-4 (σ bond) |
 | `to` | atom ref |  | Electron sink: 3 (atom), 5-2 (forming bond) |
-| `bend` | number | 1 (away from molecule) | Curvature; sign flips side |
+| `bend` | number | 1 | Curvature; sign flips side |
+| `side` | above \| below \| left \| right |  | Which side the arc bows to (default: the open side, else over the top) |
+| `out` | degrees |  | Direction the tail leaves in (0 = right, 90 = up), like TikZ |
+| `in` | degrees |  | Side the head arrives from (90 = from above), like TikZ |
+| `looseness` | number | 1 | Scale the arc control lengths |
 | `fishhook` | flag |  | Single-electron half-head |
 | `color` | colour name \| #hex | orange | Colour |
 | `width` | px | 3.5 | Stroke width |
