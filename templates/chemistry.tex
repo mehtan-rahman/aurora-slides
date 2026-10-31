@@ -1,0 +1,38 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage[version=4]{mhchem}
+\usepackage{aurora}
+
+\title{Reaction Mechanisms}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\section{SN2}
+
+% Atom-map numbers ([C:2]) name atoms: curly arrows and transforms refer to them.
+\begin{frame}{Backside attack}
+\begin{scene}[size={16,5.5}]
+  \Molecule[id=nu, at={-5,0}, lp=auto]{[OH-:1]}
+  \Molecule[id=sub, at={0,0}, lp={4}, with]{[CH3:2][Br:4]}
+  \pause
+  \CurlyArrow[from=lp:1, to=2]
+  \CurlyArrow[from=2-4, to=4, with, delay=0.3]
+  \pause
+  \Transform[id={nu,sub}, lp={1:2,4:4}]{[OH:1][CH3:2].[Br-:4]}
+  \ReactionArrow[from={-1.2,-2}, to={1.2,-2}, above={\ce{H2O}}]
+\end{scene}
+\end{frame}
+
+\begin{frame}{Equations in chemistry notation}
+  \[ \ce{CH3Br + OH- -> CH3OH + Br-} \]
+  \pause
+  Rate law: $\text{rate} = k\,[\ce{CH3Br}][\ce{OH-}]$
+\end{frame}
+
+\end{document}

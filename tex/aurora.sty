@@ -1,0 +1,29 @@
+% aurora.sty: lets Aurora decks still compile with pdflatex.
+% Scenes are animated in the HTML build only. In the PDF they become a framed
+% placeholder, or a poster image via \begin{scene}[poster=file.png].
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{aurora}[2026/10/30 Aurora PDF fallback]
+\RequirePackage{environ}
+\RequirePackage{pgfkeys}
+\RequirePackage{graphicx}
+
+\pgfkeys{/aurora/scene/.is family, /aurora/scene,
+  size/.store in=\aurora@size,
+  poster/.store in=\aurora@poster,
+  .unknown/.code={}}
+
+% Theme switch for the HTML build (no effect on the PDF): \auroratheme{light}
+\newcommand{\auroratheme}[1]{}
+
+\NewEnviron{scene}[1][]{%
+  \def\aurora@poster{}%
+  \pgfkeys{/aurora/scene, #1}%
+  \begin{center}
+  \ifx\aurora@poster\@empty
+    \fbox{\parbox[c][0.45\textheight][c]{0.8\linewidth}{\centering\small\color{gray}%
+      animated scene\\[2pt]\scriptsize(open the HTML build)}}%
+  \else
+    \includegraphics[width=0.9\linewidth,height=0.6\textheight,keepaspectratio]{\aurora@poster}%
+  \fi
+  \end{center}}
+\endinput

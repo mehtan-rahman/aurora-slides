@@ -1,0 +1,42 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{aurora}  % keeps `pdflatex` working; scenes become placeholders in the PDF
+
+\title{My Talk}
+\subtitle{Made with Aurora}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}{Click through ideas one at a time}
+  \begin{itemize}[<+->]
+    \item Every \texttt{\textbackslash pause} or overlay becomes a click step.
+    \item Text fades in; display maths is \alert{written} stroke by stroke:
+  \end{itemize}
+  \pause
+  \[ \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2} \]
+  \note{Speaker notes show up in the presenter view (press s).}
+\end{frame}
+
+\section{Animation}
+
+\begin{frame}{Scenes are animated diagrams}
+\begin{scene}[size={14,5.5}]
+  \Axes[id=ax, w=9, h=4, x={0,10,1}, y={-1.2,1.2,0.6}]
+  \ValueTracker[id=k, value=1]
+  \MathTex[at={5.6,1.7}, color=blue]{\sin(kx)}
+  \pause
+  \Plot[on=ax, color=blue]{sin(k*x)}
+  \pause
+  \Animate[k=3, run=2]
+\end{scene}
+\end{frame}
+
+\end{document}

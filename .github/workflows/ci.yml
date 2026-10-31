@@ -1,0 +1,21 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - name: Generated docs are up to date
+        run: npm run docs && git diff --exit-code docs/REFERENCE.md skills/
+      - name: Build the demo deck
+        run: node bin/aurora.js build examples/demo.tex -o demo.html

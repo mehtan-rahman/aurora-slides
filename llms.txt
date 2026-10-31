@@ -1,0 +1,19 @@
+# Aurora
+
+> Aurora compiles Beamer LaTeX decks (.tex) into single-file, manim-style animated HTML presentations. It supports written equations, animated plots with value trackers, histograms, equation morphs, and organic-chemistry mechanisms (SMILES molecules, curly arrows, mechanism transforms). Existing Beamer decks (overlays, columns, blocks, tables, TikZ) compile unchanged.
+
+CLI: `aurora build|serve|check|snapshot|init|reference`. All machine-facing commands accept `--json`.
+
+## Docs
+
+- [README](README.md): overview, quick start, Beamer support, CLI
+- [Deck-author guide for agents](templates/AGENTS.deck.md): the edit → check → snapshot loop, layout budget, scene and chemistry recipes, gotchas
+- [Scene command reference](docs/REFERENCE.md): every command, key, type and default (also `aurora reference --json`)
+- [Agent skill](skills/aurora-slides/SKILL.md): drop-in skill for Claude Code and other agents
+- [Design](docs/DESIGN.md): architecture and step model
+
+## Examples
+
+- [Showcase deck](examples/demo.tex)
+- [Classic Beamer deck](examples/classic.tex)
+- [Starter: basic](templates/basic.tex), [Starter: chemistry](templates/chemistry.tex)

@@ -1,0 +1,73 @@
+% A plain Beamer deck with no Aurora-specific commands. It shows that existing
+% decks convert as-is. TikZ and chemfig need `latex` + `dvisvgm` on PATH.
+\documentclass{beamer}
+\usetheme{Madrid}
+\usepackage{tikz}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{chemfig}
+
+\title{A Classic Beamer Deck}
+\author{Somebody}
+\date{\today}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\section{Overlays}
+\begin{frame}{TikZ with overlays}
+  \begin{columns}
+    \begin{column}{0.5\textwidth}
+      \begin{itemize}
+        \item<1-> Draw the axes
+        \item<2-> Add a curve
+        \item<3-> Mark the optimum
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{tikzpicture}[scale=1.1]
+        \draw[->] (0,0) -- (4,0) node[right] {$x$};
+        \draw[->] (0,0) -- (0,3) node[above] {$f(x)$};
+        \draw<2->[blue, thick] (0.2,2.6) .. controls (1.5,-0.5) and (2.5,-0.5) .. (3.8,2.6);
+        \fill<3->[orange] (2,0.45) circle (2.5pt) node[below=3pt] {$x^\ast$};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\section{Content}
+\begin{frame}{Tables and theorems}
+  \begin{tabular}{lcr}
+    \toprule
+    Method & Steps & Error \\
+    \midrule
+    Euler & 1000 & $10^{-2}$ \\ \pause
+    RK4 & 100 & $10^{-6}$ \\
+    \bottomrule
+  \end{tabular}
+  \pause
+  \begin{theorem}[Lax]
+    A consistent scheme converges if and only if it is stable.
+  \end{theorem}
+\end{frame}
+
+\begin{frame}[fragile]{Code and chemistry}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+\begin{lstlisting}
+def rk4(f, y, t, h):
+    k1 = f(t, y)
+    k2 = f(t + h/2, y + h*k1/2)
+    return y + h * k2
+\end{lstlisting}
+    \end{column}
+    \begin{column}{0.4\textwidth}
+      \centering
+      \chemfig{*6((=O)-N(-CH_3)-*5(-N=-N(-CH_3)-=)--(=O)-N(-H_3C)-)}
+      \caption{Caffeine via \texttt{chemfig}}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\end{document}

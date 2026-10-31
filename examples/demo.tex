@@ -1,0 +1,214 @@
+\documentclass{beamer}
+\usepackage{amsmath}
+\usepackage{aurora}          % PDF fallback for scene environments (see DESIGN.md §5)
+
+\title{Learning the Committor from the Hierarchy}
+\subtitle{An Aurora demo deck: Beamer in, manim-style HTML out}
+\author{Your Name}
+\institute{Aurora}
+\date{\today}
+
+\renewcommand{\Pr}{\mathbb{P}}
+\definecolor{accent}{HTML}{F0A35E}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Reaction coordinate}
+
+\begin{frame}{Defining the committor}
+  Suppose every partial trajectory carried one number. It would tell us:
+  \begin{itemize}[<+->]
+    \item which trajectories deserve more computation,
+    \item where the boundary between not-yet-committed and committed lies,
+    \item and \alert{how far} along the reaction we really are.
+  \end{itemize}
+  \pause
+  \[ q(x) \;=\; \Pr\big[\,\tau_B < \tau_A \;\big|\; x(0) = x\,\big] \]
+\end{frame}
+
+\begin{frame}{Defining the committor}
+\begin{scene}[size={16,6.4}]
+  \ValueTracker[id=t, value=0.08]
+  \Line[from={-4.6,-2}, to={4.6,-2}, color=muted, width=3]
+  \Text[at={-5,-2}, color=red, size=32, bold]{A}
+  \Text[at={5,-2}, color=blue, size=32, bold, with]{B}
+  \Text[at={0,-2.45}, color=muted, size=22]{launch position}
+  \Dot[at={-4.4+8.8*t, -2}, r=0.13, color=white, glow]
+  \pause
+  \Text[at={-0.35,2.3}, anchor=right, size=30]{fraction reaching B =}
+  \DecimalNumber[at={-0.15,2.3}, value={0.02+0.97*smoothstep(0.05,0.95,t)}, digits=2, size=64, with]
+  \Rect[at={-2.5+2.5*(0.02+0.97*smoothstep(0.05,0.95,t)), 1.3}, w={5*(0.02+0.97*smoothstep(0.05,0.95,t))}, h=0.22, color=blue, fill=1, width=0]
+  \pause
+  \Animate[t=0.5, run=2]
+  \pause
+  \Animate[t=0.94, run=2]
+\end{scene}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Structure of the unraveling}
+
+\begin{frame}{The trajectory is a deterministic function of the noise}
+\begin{scene}[size={16,5.6}]
+  \Axes[id=z, at={-4.6,0}, w=4.4, h=3, x={0,10,5}, y={-1,1,1}]
+  \Axes[id=xa, at={4.6,0}, w=4.4, h=3, x={0,10,5}, y={-1,1,1}, with]
+  \MathTex[at={-4.6,2.05}, color=blue]{z(t)}
+  \MathTex[at={4.6,2.05}, with]{x(t)}
+  \pause
+  \Plot[on=z, color=blue, samples=700]{0.55*noise(2.5*x,1) + 0.3*noise(6*x,2) + 0.15*noise(13*x,3)}
+  \Arrow[from={-1.7,0}, to={1.7,0}]
+  \Text[at={0,0.45}, color=muted, size=22, with]{adHOPS: deterministic}
+  \Text[at={0,-0.5}, color=orange, size=24, with]{each launch draws fresh noise}
+  \Band[on=xa, y={0.6,1}, color=blue]
+  \Band[on=xa, y={-1,-0.6}, color=red, with]
+  \Text[on=xa, at={-0.6,0.8}, color=blue, bold, size=26, with]{B}
+  \Text[on=xa, at={-0.6,-0.8}, color=red, bold, size=26, with]{A}
+  \Plot[on=xa, color=blue]{-0.75 + 1.55*sigmoid(1.3*(x-5)) + 0.05*sin(2.2*x)}
+\end{scene}
+\pause
+\begin{center}
+  \textcolor{orange}{Can we tell, mid-trajectory, which noise is heading for the event?}
+\end{center}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Central claim}
+
+\begin{frame}{Equations are \emph{written}, not faded}
+  The committor solves a boundary-value problem:
+  \begin{align*}
+    \mathcal{L}\,q(x) &= 0, && x \notin A \cup B,\\
+    q\big|_A = 0, &\quad q\big|_B = 1 .
+  \end{align*}
+  \pause
+  For a 1-D diffusion with potential $V(x)$ and temperature $\beta^{-1}$,
+  \[ q(x) = \frac{\int_a^x e^{\beta V(y)}\,dy}{\int_a^b e^{\beta V(y)}\,dy}. \]
+  \pause
+  \begin{alertblock}{Takeaway}
+    The committor is the \textbf{ideal reaction coordinate}: $q = \tfrac12$ is the transition-state surface.
+  \end{alertblock}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Proof of concept}
+
+\begin{frame}{Open Dicke model and the committor shooting test}
+  The shooting test: launch fresh-noise trajectories from predicted $q = 1/2$ states,\\
+  and histogram the committors they actually realize.
+\begin{scene}[size={16,4.6}]
+  \Text[at={-4.2,1.6}, color=teal, size=26]{a correct reaction coordinate}
+  \Text[at={4.2,1.6}, color=red, size=26, with]{a poor coordinate}
+  \Axes[id=good, at={-4.2,-0.1}, w=4.6, h=2.2, x={0,1,0}, y={0,1,0}, only=x]
+  \Axes[id=poor, at={4.2,-0.1}, w=4.6, h=2.2, x={0,1,0}, y={0,1,0}, only=x, with]
+  \MathTex[on=good, at={0,-0.18}, size=30, color=muted]{0}
+  \MathTex[on=good, at={1,-0.18}, size=30, color=muted, with]{1}
+  \MathTex[on=good, at={0.5,-0.25}, size=34, color=muted, with]{q=\tfrac12}
+  \MathTex[on=poor, at={0,-0.18}, size=30, color=muted, with]{0}
+  \MathTex[on=poor, at={1,-0.18}, size=30, color=muted, with]{1}
+  \MathTex[on=poor, at={0.5,-0.25}, size=34, color=muted, with]{q=\tfrac12}
+  \pause
+  \Bars[on=good, values={0.02,0.05,0.1,0.36,0.98,0.98,0.36,0.1,0.05,0.02}, color=teal]
+  \pause
+  \Bars[on=poor, values={0.9,0.5,0.18,0.06,0.03,0.03,0.06,0.18,0.4,0.48}, color=red]
+\end{scene}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Scope and novelty}
+
+\begin{frame}{Nested scope of the method}
+\begin{scene}[size={16,6.4}]
+  \Circle[at={-4,0}, r=3, color=muted, width=3]
+  \Text[at={-4,2.55}, color=muted, size=22, with]{any trajectory method}
+  \pause
+  \Circle[at={-4,0}, r=2.05, color=blue, width=3]
+  \Text[at={-4,1.6}, color=blue, size=22, with]{diffusive unravelings}
+  \pause
+  \Circle[id=inner, at={-4,0}, r=1.08, color=orange, width=3]
+  \Text[at={-4,0}, color=orange, size=28, bold, with]{adHOPS}
+  \pause
+  \Text[at={0.6,1.2}, anchor=left, size=28]{Committor learning applies at every level,}
+  \Text[at={0.6,0.6}, anchor=left, size=28, with, delay=0.2]{but bath memory only exists in the inner one.}
+  \Indicate[id=inner]
+\end{scene}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\section{Chemistry}
+
+\begin{frame}{Nucleophilic acyl substitution}
+\begin{scene}[size={16,6.2}]
+  \Molecule[id=nu, at={-4.4,0.4}, lp=auto, bond=1.6]{[OH-:5]}
+  \Molecule[id=r, at={0.2,0}, lp={3}, bond=1.6, with]{[CH3:1][C:2](=[O:3])[Cl:4]}
+  \pause
+  \CurlyArrow[from=lp:5, to=2]
+  \CurlyArrow[from=2=3, to=3, with, delay=0.3]
+  \pause
+  \Transform[id={r,nu}, lp={3:3}]{[CH3:1][C:2]([O-:3])([Cl:4])[OH:5]}
+  \Text[id=lbl, at={2.1,1.8}, anchor=left, color=muted, size=26]{tetrahedral intermediate}
+  \pause
+  \CurlyArrow[from=lp:3, to=2-3]
+  \CurlyArrow[from=2-4, to=4, with, delay=0.3]
+  \pause
+  \Transform[id=r, lp={3,4}]{[CH3:1][C:2](=[O:3])[OH:5].[Cl-:4]}
+  \FadeOut[id=lbl, with]
+  \Text[at={2.1,1.8}, anchor=left, color=muted, size=26]{acetic acid + chloride}
+\end{scene}
+\end{frame}
+
+\begin{frame}{S\textsubscript{N}2: inversion of configuration}
+\begin{scene}[size={16,6.2}]
+  \Molecule[id=nu, at={-5,0}, lp=auto, bond=1.5]{[OH-:6]}
+  \Molecule[id=s, at={0.6,0}, lp={5}, bond=1.5, with]{[CH3:2][C@@H:1]([CH2:3][CH3:4])[Br:5]}
+  \pause
+  \CurlyArrow[from=lp:6, to=1]
+  \CurlyArrow[from=1-5, to=5, with, delay=0.3]
+  \pause
+  \Transform[id={nu,s}, lp={6:2,5:4}, run=2]{[OH:6][C@H:1]([CH3:2])[CH2:3][CH3:4].[Br-:5]}
+  \Text[at={0,-2.6}, color=muted, size=24]{backside attack: the stereocentre turns inside out}
+\end{scene}
+\end{frame}
+
+\begin{frame}{Equations morph, too}
+\begin{scene}[size={16,5}]
+  \MathTex[id=eq, at={0,1}, size=64]{x^2 + 2x + 1}
+  \pause
+  \TransformTex[id=eq]{(x+1)^2}
+  \pause
+  \TransformTex[id=eq]{(x+1)^2 = 0 \Rightarrow x = -1}
+  \MathTex[at={0,-1.2}, size=40, color=teal]{\ce{2H2 + O2 -> 2H2O}}
+\end{scene}
+\end{frame}
+
+\section{Summary}
+
+\begin{frame}{What the compiler understands}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \item \textbf{Bold}, \emph{emphasis}, \texttt{code}, \textcolor{teal}{colour}
+        \item Inline math $e^{i\pi} + 1 = 0$ and user macros $\Pr[X]$
+        \item<2-> Overlays: \texttt{\textbackslash item<2->}, \only<2>{\alert{\texttt{\textbackslash only}}}\only<3>{\texttt{\textbackslash pause}}
+        \item<3-> Blocks, columns, images, notes
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Navigation}
+        $\rightarrow$ / space / click: next step\\
+        $\leftarrow$: back (snaps state)\\
+        \texttt{f}: fullscreen, \texttt{?}: help
+      \end{block}
+      \begin{exampleblock}<3->{Also built in}
+        Curly-arrow \textbf{organic mechanisms}, equation morphs, speaker view (\texttt{s}), overview (\texttt{o}).
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+  \note{Speaker notes appear here in the speaker view (press s). Mention that the same .tex still compiles to PDF.}
+\end{frame}
+
+\end{document}

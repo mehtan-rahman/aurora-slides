@@ -1,0 +1,61 @@
+{
+  "name": "aurora-slides",
+  "version": "0.1.0",
+  "description": "Compile Beamer .tex decks into manim-style animated HTML presentations: written equations, animated plots, curly-arrow chemistry mechanisms.",
+  "keywords": [
+    "beamer",
+    "latex",
+    "slides",
+    "presentation",
+    "manim",
+    "animation",
+    "chemistry",
+    "mechanism",
+    "tikz",
+    "html"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "aurora": "bin/aurora.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "runtime",
+    "templates",
+    "tex",
+    "skills",
+    "docs/REFERENCE.md",
+    "AGENTS.md",
+    "llms.txt"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/",
+    "examples": "node src/cli.ts build examples/demo.tex -o docs/demo.html",
+    "check": "npm run typecheck && npm test && node src/cli.ts check examples/demo.tex --strict",
+    "prepublishOnly": "npm run check && npm run build",
+    "docs": "node scripts/gen-docs.ts"
+  },
+  "dependencies": {
+    "@rdkit/rdkit": "2024.3.5-1.0.0",
+    "mathjax-full": "3.2.2"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.40"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}
