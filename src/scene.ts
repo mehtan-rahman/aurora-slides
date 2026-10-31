@@ -2,7 +2,7 @@
 import { Reader, parseKeyVals, splitTop } from './reader.ts';
 import { texToSvg } from './math.ts';
 import { resolveColor, type Ctx } from './inline.ts';
-import { layout, alignTo, chemReady, type MolGeom, type LayoutOpts, type Atom } from './chem.ts';
+import { layout, alignTo, chemReady, valenceLp, bestFacing, rotateMol, translateMol, molCentre, type MolGeom, type LayoutOpts, type Atom } from './chem.ts';
 import { COMMANDS, ACTION_SPECS, COMMON_KEYS, suggest } from './schema.ts';
 
 export type Props = Record<string, string | true>;
@@ -107,12 +107,62 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
   let auto = 0;
 
   const liveMols: string[] = []; // molecules current at this point in the script
+  const orientable = new Set<string>(); // freshly declared molecules the user didn't rotate
+  let pendingArrows: Props[] = [];
+  const findAtom = (map: number) => {
+    for (const id of liveMols) {
+      const g = byId.get(id)!.mol!;
+      const i = g.atoms.findIndex((a) => a.map === map);
+      if (i >= 0) return { id, g, i };
+    }
+    return null;
+  };
+  // Turn reactants so the curly arrows read like a textbook: the attacked atom opens toward
+  // the nucleophile (leaving group anti to it), the nucleophile's free side faces the target.
+  const orientPending = () => {
+    const arrows = pendingArrows;
+    pendingArrows = [];
+    const num = (v: unknown, re: RegExp) => { const m = re.exec(String(v ?? '').trim()); return m ? Number(m[1]) : NaN; };
+    for (const p of arrows) {
+      const src = findAtom(num(p.from, /^@?(?:lp:)?(\d+)$/)), dst = findAtom(num(p.to, /^@?(\d+)$/));
+      if (!src || !dst || src.id === dst.id) continue;
+      const Y = dst.g.atoms[dst.i];
+      if (orientable.has(dst.id)) {
+        // A bond arrow Y–Z → Z in the same batch marks Z as the leaving group.
+        let anti: number | undefined;
+        for (const q of arrows) {
+          const m = /^@?(\d+)\s*[-=#~.:]+\s*(\d+)$/.exec(String(q.from ?? '').trim());
+          const z = num(q.to, /^@?(\d+)$/);
+          if (m && (Number(m[1]) === Y.map || Number(m[2]) === Y.map) && (Number(m[1]) === z || Number(m[2]) === z) && z !== Y.map) {
+            const k = dst.g.atoms.findIndex((a) => a.map === z);
+            if (k >= 0) anti = k;
+          }
+        }
+        const X = src.g.atoms[src.i];
+        const th = bestFacing(dst.g, dst.i, [X.x, X.y], anti);
+        if (th) rotateMol(dst.g, th, molCentre(dst.g));
+        orientable.delete(dst.id);
+      }
+      if (orientable.has(src.id)) {
+        const X = src.g.atoms[src.i];
+        const th = bestFacing(src.g, src.i, [Y.x, Y.y]);
+        if (th) rotateMol(src.g, th, molCentre(src.g));
+        if (!src.g.bonds.length) X.hleft = Y.x > X.x; // HO⁻ ··· target on the right
+        // A small nucleophile slides level with its target so the attack reads straight on.
+        const heavy = src.g.atoms.filter((a) => a.sym !== 'H').length;
+        const dx = Y.x - X.x, dy = Y.y - X.y;
+        if (heavy <= 3 && Math.abs(dx) > 2 * Math.abs(dy)) translateMol(src.g, 0, dy);
+        orientable.delete(src.id);
+      }
+    }
+  };
   const addObj = (obj: SceneObj) => {
     // Atom refs (@3, lp:5, 2-3) resolve against the molecules alive when the object is declared.
     if (obj.kind === 'CurlyArrow' || Object.values(obj.props).some((v) => typeof v === 'string' && v.startsWith('@'))) obj.props.mols = liveMols.join(',');
     spec.objects.push(obj);
     byId.set(obj.id, obj);
     if (obj.kind === 'Molecule') liveMols.push(obj.id);
+    if (obj.kind === 'CurlyArrow') pendingArrows.push(obj.props);
   };
 
   while (true) {
@@ -175,6 +225,7 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
         } else if (name === 'Molecule') {
           if (!chemReady()) { ctx.warn('Molecule: chemistry engine unavailable'); continue; }
           try { obj.mol = layout(content.trim(), molOpts(kv)); } catch (e) { ctx.warn(`Molecule: ${(e as Error).message}`); continue; }
+          if (kv.rotate === undefined && kv.flip === undefined && kv.orient !== 'false') orientable.add(id);
         } else {
           obj.text = name === 'Text' ? plainText(content) : content.trim();
         }
@@ -196,6 +247,7 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
         const ids = typeof kv.id === 'string' ? splitTop(kv.id) : [];
         const sources = ids.map(cur).filter((s) => byId.get(s)?.mol);
         if (!sources.length) { ctx.warn('Transform: id must name at least one Molecule'); continue; }
+        orientPending();
         if (!chemReady()) continue;
         const ref: Atom[] = sources.flatMap((s) => byId.get(s)!.mol!.atoms);
         const first = byId.get(sources[0])!;
@@ -204,6 +256,11 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
         let mol: MolGeom;
         try { mol = layout(content, opts); } catch (e) { ctx.warn(`Transform: ${(e as Error).message}`); continue; }
         mol = alignTo(mol, ref, typeof kv.at === 'string' ? vec2(kv.at, [0, 0]) : undefined);
+        // Atoms that showed lone pairs keep showing them (recounted) unless lp= says otherwise.
+        if (opts.lp !== 'auto') mol.atoms.forEach((a, i) => {
+          if (!a.map || opts.lp?.[a.map] !== undefined) return;
+          if (ref.some((r) => r.map === a.map && r.lp > 0)) a.lp = valenceLp(mol, i);
+        });
         const userId = typeof kv.as === 'string' ? kv.as : ids[0];
         const tid = `${userId}~${auto++}`;
         const tprops = props({ ...first.props, ...kv });
@@ -239,5 +296,6 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
     r.skipSpace();
     if (r.peek() === '{') r.readGroup();
   }
+  orientPending();
   return spec;
 }

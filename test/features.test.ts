@@ -117,3 +117,37 @@ test('light theme and stereo wedges', () => {
   const g = layout('C[C@H](O)CC');
   assert.equal(g.bonds.filter((b) => b.stereo).length, 1);
 });
+
+test('reactants auto-orient to their curly arrows (SN2: leaving group anti)', () => {
+  const d = deck(`\\begin{frame}\\begin{scene}
+    \\Molecule[id=nu, at={-5,0.5}, lp=auto]{[OH-:6]}
+    \\Molecule[id=s, at={1,0}, lp={5}]{[CH3:2][C@@H:1]([CH2:3][CH3:4])[Br:5]}
+    \\pause
+    \\CurlyArrow[from=lp:6, to=1]
+    \\CurlyArrow[from=1-5, to=5, with]
+    \\pause
+    \\Transform[id={nu,s}]{[OH:6][C@H:1]([CH3:2])[CH2:3][CH3:4].[Br-:5]}
+  \\end{scene}\\end{frame}`);
+  const objs = d.scenes[0].objects;
+  const s = objs.find((o) => o.id === 's')!.mol!, nu = objs.find((o) => o.id === 'nu')!.mol!;
+  const at = (g: typeof s, m: number) => g.atoms.find((a) => a.map === m)!;
+  const C = at(s, 1), Br = at(s, 5), O = at(nu, 6);
+  const cBr = Math.atan2(Br.y - C.y, Br.x - C.x), cO = Math.atan2(O.y - C.y, O.x - C.x);
+  assert.ok(Math.abs(Math.abs(cBr - cO) - Math.PI) < 0.3, 'C–Br points away from the nucleophile');
+  assert.ok(Math.abs(O.y - C.y) < 1e-6, 'small nucleophile levelled with its target');
+  assert.equal(O.hleft, true, 'HO⁻ written with H away from the target');
+  // Lone pairs carry over a Transform: O6 had them, so the product still shows them (recounted).
+  const p = objs.find((o) => o.id.startsWith('nu~') || o.id.startsWith('s~'))!.mol!;
+  assert.equal(at(p, 6).lp, 2);
+  assert.equal(at(p, 5).lp, 4);
+});
+
+test('rotate= turns auto-orientation off', () => {
+  const src = (k: string) => `\\begin{frame}\\begin{scene}
+    \\Molecule[id=nu, at={-5,0}, lp=auto]{[OH-:6]}
+    \\Molecule[id=s, at={1,0}${k}]{[CH3:2][CH2:1][Br:5]}
+    \\CurlyArrow[from=lp:6, to=1]\\CurlyArrow[from=1-5, to=5]
+  \\end{scene}\\end{frame}`;
+  const br = (k: string) => deck(src(k)).scenes[0].objects.find((o) => o.id === 's')!.mol!.atoms.find((a) => a.map === 5)!;
+  assert.notDeepEqual([br('').x, br('').y], [br(', rotate=0').x, br(', rotate=0').y]);
+});

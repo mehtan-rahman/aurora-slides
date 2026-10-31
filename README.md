@@ -129,8 +129,12 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
   (`[C:2]`) name atoms.
 - `\CurlyArrow[from=lp:5, to=2]`: refs are `N` (atom), `N-M`/`N=M` (bond, or a
   forming bond's midpoint), and `lp:N` (lone pair). Add `fishhook` for radical chemistry.
-- `\Transform[id={a,b}]{product SMILES}`: mapped atoms move; other atoms and
-  bonds fade in or out; separate fragments with `.`.
+- `\Transform[id={a,b}]{product SMILES}`: mapped atoms move; new bonds grow
+  out of the attacking atom while broken ones stretch and fade; lone pairs slide
+  round to their new places. Separate fragments with `.`.
+- Reactants turn themselves to face their curly arrows: the nucleophile's lone
+  pairs point at the target, and a leaving group sits anti to the attack (true
+  backside SN2). Give `rotate=` or `orient=false` to place a molecule yourself.
 - `\ReactionArrow[above={\ce{H2O}}, below={\Delta}]`, and `\ce{…}` (mhchem) in any maths.
 
 ## Gallery

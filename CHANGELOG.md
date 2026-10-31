@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Chemistry looks and moves like a textbook:
+  - Reactants auto-orient to their curly arrows (backside SN2, nucleophile lone pair facing the target). `orient=false` opts out.
+  - Lone pairs sit on the free sides of the label, and charges take a free corner. Lone pairs carry through `\Transform`.
+  - Curly arrows leave the facing lone pair, stop at label edges, hug bonds for bond → atom pushes, and bow less on long hops.
+  - Morphs are concerted: new bonds grow from the attacking atom, broken bonds stretch as they fade, and lone pairs slide to their new places.
+- `aurora.seek(ms)` freezes the current step at an exact time, for deterministic frame capture.
+- Fix: fast navigation no longer throws when the browser rate-limits `history.replaceState`.
+
 ## 0.1.0
 
 First release.

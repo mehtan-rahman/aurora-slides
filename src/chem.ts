@@ -102,13 +102,10 @@ export function layout(smiles: string, o: LayoutOpts = {}): MolGeom {
       };
     });
 
-    // Lone pairs from valence: (valence e⁻ − charge − bonding e⁻) / 2.
     atoms.forEach((a, i) => {
       const want = o.lp === 'auto' ? (a.sym !== 'C' && a.sym !== 'H' ? null : undefined) : o.lp?.[a.map];
       if (want === undefined) return;
-      if (want !== null) { a.lp = want; return; }
-      const bondE = bonds.filter((b) => b.a === i || b.b === i).reduce((s, b) => s + b.order, 0) + a.hs;
-      a.lp = Math.max(0, Math.floor(((VALENCE_E[a.sym] ?? 0) - a.charge - bondE) / 2));
+      a.lp = want !== null ? want : valenceLp({ atoms, bonds, bond: bondLen }, i);
     });
 
     // Double-bond offset side: toward the side holding more neighbours (ring interiors).
@@ -128,6 +125,13 @@ export function layout(smiles: string, o: LayoutOpts = {}): MolGeom {
   } finally {
     mol.delete();
   }
+}
+
+/** Lone pairs from valence: (valence e⁻ − charge − bonding e⁻) / 2. */
+export function valenceLp(g: MolGeom, i: number): number {
+  const a = g.atoms[i];
+  const bondE = g.bonds.filter((b) => b.a === i || b.b === i).reduce((s, b) => s + b.order, 0) + a.hs;
+  return Math.max(0, Math.floor(((VALENCE_E[a.sym] ?? 0) - a.charge - bondE) / 2));
 }
 
 /**
@@ -278,4 +282,59 @@ function rederive(g: MolGeom): MolGeom {
     b.side = Math.sign(score) || b.side;
   }
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// Mechanism-aware orientation. Textbooks draw the attacked atom with its open
+// side facing the nucleophile and a leaving group anti to it (SN2), and the
+// nucleophile with its lone pairs facing the target. These helpers pick a
+// rotation (on the 30° grid, so stereo wedges stay valid) that does that.
+
+const angDiff = (a: number, b: number) => { let d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
+
+/** Rotates `g` rigidly by `th` radians about `c`, in place. */
+export function rotateMol(g: MolGeom, th: number, c: [number, number]): MolGeom {
+  const cs = Math.cos(th), sn = Math.sin(th);
+  for (const a of g.atoms) {
+    const dx = a.x - c[0], dy = a.y - c[1];
+    a.x = c[0] + dx * cs - dy * sn; a.y = c[1] + dx * sn + dy * cs;
+  }
+  return rederive(g);
+}
+
+export function translateMol(g: MolGeom, dx: number, dy: number): MolGeom {
+  for (const a of g.atoms) { a.x += dx; a.y += dy; }
+  return g;
+}
+
+export function molCentre(g: MolGeom): [number, number] {
+  const xs = g.atoms.map((a) => a.x), ys = g.atoms.map((a) => a.y);
+  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+}
+
+/**
+ * Best rotation (multiple of 30°) so atom `i` of `g` opens toward `target`.
+ * With `anti` (index of a leaving atom bonded to i), the i→anti bond is instead
+ * pointed straight away from the target. Returns radians (0 if no real gain).
+ */
+export function bestFacing(g: MolGeom, i: number, target: [number, number], anti?: number): number {
+  const c = molCentre(g);
+  const nb = g.bonds.filter((b) => b.a === i || b.b === i).map((b) => (b.a === i ? b.b : b.a));
+  if (!nb.length) return 0;
+  const score = (th: number) => {
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const rot = (a: Atom): [number, number] => [c[0] + (a.x - c[0]) * cs - (a.y - c[1]) * sn, c[1] + (a.x - c[0]) * sn + (a.y - c[1]) * cs];
+    const [x, y] = rot(g.atoms[i]);
+    const d = Math.atan2(target[1] - y, target[0] - x);
+    if (anti !== undefined) { const [ax, ay] = rot(g.atoms[anti]); return angDiff(Math.atan2(ay - y, ax - x), d); }
+    return Math.min(...nb.map((m) => { const [mx, my] = rot(g.atoms[m]); return angDiff(Math.atan2(my - y, mx - x), d); }));
+  };
+  const base = score(0);
+  let best = 0, bestS = base;
+  for (let k = 1; k < 12; k++) {
+    const th = (k > 6 ? k - 12 : k) * (Math.PI / 6);
+    const s = score(th) - Math.abs(th) * 0.01; // prefer the smallest turn among equals
+    if (s > bestS + 1e-6) { best = th; bestS = s; }
+  }
+  return bestS - base > (15 * Math.PI) / 180 ? best : 0;
 }

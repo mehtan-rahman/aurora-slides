@@ -109,11 +109,12 @@ export const COMMANDS: Record<string, CommandSpec> = {
   Molecule: {
     summary: 'Skeletal structure from SMILES. Use atom maps ([C:2]) to address atoms in curly arrows and transforms.', content: 'SMILES, e.g. [CH3:1][C:2](=[O:3])[Cl:4]', intro: 'create',
     keys: {
-      at: { type: vec, desc: 'Centre', default: '0,0' }, bond: { type: 'units', desc: 'Bond length', default: '0.8' },
-      rotate: { type: 'degrees', desc: 'Rotate the layout' }, flip: { type: 'flag', desc: 'Mirror horizontally' },
+      at: { type: vec, desc: 'Centre', default: '0,0' }, bond: { type: 'units', desc: 'Bond length', default: '1.45' },
+      rotate: { type: 'degrees', desc: 'Rotate the layout (turns off auto-orientation)' }, flip: { type: 'flag', desc: 'Mirror horizontally' },
+      orient: { type: 'auto | false', desc: 'Auto-turn reactants to face their curly arrows (nucleophile toward target, leaving group anti)', default: 'auto' },
       carbons: { type: 'auto | none | terminal | all', desc: 'Which carbons get a C label (auto: all of them in molecules with ≤ 3 heavy atoms)', default: 'auto' },
       lp: { type: 'auto | map list | map:count list', desc: 'Lone pairs to draw: auto = all heteroatoms; {3,5}; {3:2}' },
-      color: { type: color, desc: 'Bond / label colour', default: 'fg' }, size: { type: 'px', desc: 'Atom label size', default: '30' },
+      color: { type: color, desc: 'Bond / label colour', default: 'fg' }, size: { type: 'px', desc: 'Atom label size', default: '0.36 × bond' },
     },
     example: '\\Molecule[id=r, at={-2,0}, lp={3}]{[CH3:1][C:2](=[O:3])[Cl:4]}',
   },

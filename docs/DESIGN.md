@@ -189,12 +189,26 @@ replace the placeholder with a static TikZ rendering of the scene's final state.
 - **Rendering.** We emit our own SVG: bonds as paths, atom labels as text or
   MathJax. That way Create and Write apply, and every atom is addressable by map number.
 - **Curly arrows.** Endpoints resolve to atoms (`2`), bonds (`2=3`, i.e. the bond
-  midpoint), or lone pairs (`lp:5`, offset away from neighbors). The arrow is a
-  cubic Bézier bowed away from the molecule's centroid, drawn with Create and a
-  half-head for single-electron (fishhook) arrows (`fishhook`).
-- **Mechanism morphs.** `\Transform` matches atoms by map number. Atoms that
-  persist tween position. Bonds that persist tween endpoints. Formed bonds Create,
-  broken bonds fade. Charges and lone pairs fade.
+  midpoint), or lone pairs (`lp:5`). Textbook habits are built in: tails leave the
+  lone pair that faces the target, tangent to it; heads stop at the label edge (or
+  arc over an `H₃C` label onto the carbon); bond → own-atom arrows hug the open
+  side of the bond. Long arrows bow gently (≈13% of their length). A half-head
+  gives single-electron (fishhook) arrows.
+- **Orientation.** Before the first `\Transform` that follows a batch of curly
+  arrows, the compiler turns freshly declared reactants (30° steps, so wedges stay
+  valid): the attacked atom's widest gap faces the nucleophile, or, when a bond
+  arrow marks a leaving group, that bond points straight away from it. Small
+  nucleophiles slide level with their target and write their H away from it
+  (`HO⁻`). `rotate=` or `orient=false` opts out.
+- **Lone pairs and charges.** On written labels, lone pairs take the free
+  cardinal sides (above, below, left, right); charges sit in a free corner. They
+  carry through `\Transform`, recounted from valence.
+- **Mechanism morphs.** `\Transform` matches atoms by map number. Persisting atoms
+  swing about persisting bonds. π bonds break or form in place over the middle of
+  the motion; a new σ bond grows out of the atom that moved most; broken bonds
+  stretch with their atoms as they fade (all concerted). Surviving lone pairs
+  slide to their new sites (minimum-travel matching); curly arrows fade in the
+  first quarter.
 - **Extras.** Reaction arrows with conditions above and below
   (`\ReactionArrow{H$_2$O}{Δ}`), partial charges δ+/δ−, transition-state brackets
   with ‡, and an energy-diagram helper built on `Axes` + `Plot`.

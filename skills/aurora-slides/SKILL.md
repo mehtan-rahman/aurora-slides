@@ -104,6 +104,10 @@ aurora reference                    # every scene command, key, and default
 - Separate the products with `.`, e.g. a leaving group `.[Br-:4]`. Each fragment
   stays near where its atoms were.
 - Curly arrows fade out automatically when the next `\Transform` happens.
+- Reactants turn automatically to face their curly arrows (nucleophile toward the
+  target, leaving group anti), so don't fight it with coordinates. Use `rotate=`
+  or `orient=false` only if you need a specific drawing.
+- Lone pairs carry through `\Transform` (recounted). Use `lp={5:0}` to hide them on atom 5.
 - `lp=auto` draws lone pairs on all heteroatoms. Use `lp={3}` for specific atoms,
   or `lp={3:2}` to give an explicit count.
 - Reaction conditions: `\ReactionArrow[from={-1,0}, to={1,0}, above={\ce{H2O}}, below={\Delta}]`.

@@ -248,13 +248,14 @@ Content `{…}`: SMILES, e.g. [CH3:1][C:2](=[O:3])[Cl:4]
 | key | type | default | description |
 |---|---|---|---|
 | `at` | vector "x,y" | 0,0 | Centre |
-| `bond` | units | 0.8 | Bond length |
-| `rotate` | degrees |  | Rotate the layout |
+| `bond` | units | 1.45 | Bond length |
+| `rotate` | degrees |  | Rotate the layout (turns off auto-orientation) |
 | `flip` | flag |  | Mirror horizontally |
+| `orient` | auto \| false | auto | Auto-turn reactants to face their curly arrows (nucleophile toward target, leaving group anti) |
 | `carbons` | auto \| none \| terminal \| all | auto | Which carbons get a C label (auto: all of them in molecules with ≤ 3 heavy atoms) |
 | `lp` | auto \| map list \| map:count list |  | Lone pairs to draw: auto = all heteroatoms; {3,5}; {3:2} |
 | `color` | colour name \| #hex | fg | Bond / label colour |
-| `size` | px | 30 | Atom label size |
+| `size` | px | 0.36 × bond | Atom label size |
 
 ### `\CurlyArrow`
 
