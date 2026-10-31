@@ -151,3 +151,15 @@ test('rotate= turns auto-orientation off', () => {
   const br = (k: string) => deck(src(k)).scenes[0].objects.find((o) => o.id === 's')!.mol!.atoms.find((a) => a.map === 5)!;
   assert.notDeepEqual([br('').x, br('').y], [br(', rotate=0').x, br(', rotate=0').y]);
 });
+
+test('Transform flow=false opts out of the electron-flow phase', () => {
+  const src = (k: string) => `\\begin{frame}\\begin{scene}
+    \\Molecule[id=nu, at={-5,0}, lp=auto]{[OH-:1]}\\Molecule[id=s, at={1,0}, lp={4}]{[CH3:2][Br:4]}
+    \\pause\\CurlyArrow[from=lp:1, to=2]\\CurlyArrow[from=2-4, to=4]
+    \\pause\\Transform[id={nu,s}${k}]{[OH:1][CH3:2].[Br-:4]}
+  \\end{scene}\\end{frame}`;
+  const ev = (k: string) => deck(src(k)).scenes[0].events.find((e) => e.type === 'transform')!;
+  assert.equal(ev('').flow, undefined);
+  assert.equal(ev(', flow=false').flow, false);
+  assert.equal(deck(src(', flow=false')).warnings.length, 0);
+});

@@ -587,15 +587,28 @@
         // During a transform a bond can change order: draw the higher order with the extra line(s) at `extra`.
         const morph = ov?.bondOrder?.(bi);
         if (morph) {
-          const t = morph.extra, side = morph.side;
+          const g = morph.growMid; // π bond forming where a curly arrow landed: grows out from the middle
+          const t = g !== undefined ? g : morph.keep !== undefined ? morph.keep : morph.extra, side = morph.side;
+          const lineG = (ax, ay, bx, by, alpha) => {
+            if (morph.keep !== undefined) {
+              // π electrons leaving for one end: the extra line shrinks toward it.
+              const k = morph.keep;
+              if (k <= 0.02) return;
+              return morph.towardA ? line(ax, ay, ax + (bx - ax) * k, ay + (by - ay) * k) : line(bx + (ax - bx) * k, by + (ay - by) * k, bx, by);
+            }
+            if (g === undefined) return line(ax, ay, bx, by, alpha);
+            if (g <= 0) return;
+            const mx = (ax + bx) / 2, my = (ay + by) / 2;
+            line(mx + (ax - mx) * g, my + (ay - my) * g, mx + (bx - mx) * g, my + (by - my) * g);
+          };
           if (morph.hi === 2 && side === 0) {
             const o = (d / 2) * t; // centred pair splits out of / merges into one line
             line(x1 + nx * o, y1 + ny * o, x2 + nx * o, y2 + ny * o);
-            line(x1 - nx * o, y1 - ny * o, x2 - nx * o, y2 - ny * o, t);
+            lineG(x1 - nx * o, y1 - ny * o, x2 - nx * o, y2 - ny * o, t);
           } else if (morph.hi === 2) {
             const s2 = -side, sh1 = t1 ? 0 : L * 0.13, sh2 = t2 ? 0 : L * 0.13;
             line(x1, y1, x2, y2);
-            line(x1 + nx * d * s2 + ux * sh1, y1 + ny * d * s2 + uy * sh1, x2 + nx * d * s2 - ux * sh2, y2 + ny * d * s2 - uy * sh2, t);
+            lineG(x1 + nx * d * s2 + ux * sh1, y1 + ny * d * s2 + uy * sh1, x2 + nx * d * s2 - ux * sh2, y2 + ny * d * s2 - uy * sh2, t);
           } else {
             line(x1, y1, x2, y2);
             line(x1 + nx * d, y1 + ny * d, x2 + nx * d, y2 + ny * d, morph.lo >= 2 ? 1 : t);
@@ -645,7 +658,9 @@
         } else {
           const gr = ov?.bondGrow?.(bi);
           if (!gr) line(x1, y1, x2, y2);
-          else if (gr.t > 0) {
+          else if (gr.mid) {
+            if (gr.t > 0) { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2; line(mx + (x1 - mx) * gr.t, my + (y1 - my) * gr.t, mx + (x2 - mx) * gr.t, my + (y2 - my) * gr.t); }
+          } else if (gr.t > 0) {
             if (gr.fromB) line(x2, y2, x2 + (x1 - x2) * gr.t, y2 + (y1 - y2) * gr.t);
             else line(x1, y1, x1 + (x2 - x1) * gr.t, y1 + (y2 - y1) * gr.t);
           }
@@ -660,6 +675,12 @@
         const L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L;
         const t1 = trim(gb.i, ux, uy), t2 = trim(gb.j, -ux, -uy);
         x1 += ux * t1; y1 += uy * t1; x2 -= ux * t2; y2 -= uy * t2;
+        if (gb.keep !== undefined) {
+          // Retracting toward atom `toward`: keep only that end's fraction of the bond.
+          if (gb.keep <= 0.02) continue;
+          if (gb.toward === gb.i) { x2 = x1 + (x2 - x1) * gb.keep; y2 = y1 + (y2 - y1) * gb.keep; }
+          else { x1 = x2 + (x1 - x2) * gb.keep; y1 = y2 + (y1 - y2) * gb.keep; }
+        }
         const offs = gb.order >= 3 ? [-1, 0, 1] : gb.order === 2 ? [-0.5, 0.5] : [0];
         for (const o of offs) {
           const p = svgEl('path', { d: `M${x1 - uy * st.gap * o},${y1 + ux * st.gap * o}L${x2 - uy * st.gap * o},${y2 + ux * st.gap * o}`, fill: 'none', 'stroke-linecap': 'round' }, g);
@@ -714,29 +735,34 @@
         };
         const sites = [], outs = [];
         const sep = fs * 0.14, dot = Math.max(2.4, fs * 0.075);
-        const drawPair = (dx, dy, alpha) => {
-          const [cx, cy] = lpSite(ob, i, dx, dy, st);
+        const drawPair = (dx, dy, alpha, at = null, fill = color) => {
+          const [cx, cy] = at ?? lpSite(ob, i, dx, dy, st);
           if (alpha >= 0.5) { sites.push([cx, cy]); outs.push([dx, dy]); }
           if (alpha <= 0) return;
           for (const s of [-1, 1]) {
             const c = svgEl('circle', { cx: cx - dy * sep * s, cy: cy + dx * sep * s, r: dot }, dg);
-            c.style.fill = color;
+            c.style.fill = fill;
             if (alpha < 1) c.style.opacity = alpha;
           }
         };
         const dm = ov?.decoMorph?.(i);
         if (dm) {
           // Lone pairs that survive slide round to their new places; the rest fade.
-          const from = dm.from.length === dm.lp ? dm.from : lpDirs(ob, i, dm.lp, st).map(([x0, y0]) => Math.atan2(y0, x0));
+          // A pair that left along a curly arrow (dm.skip) is no longer here; one arriving
+          // along an arrow (dm.land) joins the old pairs at its landing point, and every pair
+          // then takes the new site that minimises total travel.
+          const from = (dm.from.length === dm.lp ? dm.from : lpDirs(ob, i, dm.lp, st).map(([x0, y0]) => Math.atan2(y0, x0)))
+            .filter((_, k) => k !== dm.skip);
+          const landK = dm.land ? from.length : -1;
+          if (dm.land) from.push(Math.atan2(dm.land.pt[1] - y, dm.land.pt[0] - x));
           const to = lpDirs(ob, i, a.lp, st).map(([x0, y0]) => Math.atan2(y0, x0));
-          // Pair old and new sites with the least total travel (tiny sets: brute force).
           let best = null;
           const assign = (ti, usedSet, cost, pairs) => {
             if (best && cost >= best.cost) return;
             if (ti === to.length) { best = { cost, pairs: [...pairs] }; return; }
             for (let k = 0; k < from.length; k++) if (!usedSet.has(k)) {
               usedSet.add(k); pairs.push(k);
-              assign(ti + 1, usedSet, cost + angDist(from[k], to[ti]), pairs);
+              assign(ti + 1, usedSet, cost + angDist(from[k], to[ti]) * (k === landK ? 3 : 1), pairs);
               usedSet.delete(k); pairs.pop();
             }
             if (to.length - ti > from.length - usedSet.size) { pairs.push(-1); assign(ti + 1, usedSet, cost + Math.PI, pairs); pairs.pop(); }
@@ -745,6 +771,14 @@
           const used = new Set();
           to.forEach((t, ti) => {
             const bi = best ? best.pairs[ti] : -1;
+            if (bi >= 0 && bi === landK) {
+              used.add(bi);
+              if (dm.land.t < 0) return; // still in flight (drawn riding the arrow)
+              const [sx, sy] = lpSite(ob, i, Math.cos(t), Math.sin(t), st), k = dm.land.t;
+              const at = [dm.land.pt[0] + (sx - dm.land.pt[0]) * k, dm.land.pt[1] + (sy - dm.land.pt[1]) * k];
+              drawPair(Math.cos(t), Math.sin(t), 1, at, k < 1 ? `color-mix(in srgb, ${dm.land.col} ${Math.round((1 - k) * 100)}%, ${color})` : color);
+              return;
+            }
             if (bi < 0) { drawPair(Math.cos(t), Math.sin(t), dm.fi); return; }
             used.add(bi);
             let d = t - from[bi];
@@ -753,9 +787,9 @@
             const ang = from[bi] + d * dm.a;
             drawPair(Math.cos(ang), Math.sin(ang), 1);
           });
-          from.forEach((f, k) => { if (!used.has(k)) drawPair(Math.cos(f), Math.sin(f), dm.fo); });
+          from.forEach((f, k) => { if (!used.has(k) && k !== landK) drawPair(Math.cos(f), Math.sin(f), dm.fo); });
           if (dm.charge === a.charge) drawCharge(a.charge, 1);
-          else { drawCharge(dm.charge, dm.fo); drawCharge(a.charge, dm.fi); }
+          else { drawCharge(dm.charge, dm.cfo ?? dm.fo); drawCharge(a.charge, dm.cfi ?? dm.fi); }
         } else {
           drawCharge(a.charge, 1);
           if (a.lp > 0) for (const [dx, dy] of lpDirs(ob, i, a.lp, st)) drawPair(dx, dy, 1);
@@ -766,144 +800,186 @@
     },
 
     /**
-     * Electron-pushing arrow. Geometry follows textbook habit: tails leave a lone pair
-     * outward (or sit just beside a bond), heads stop at the edge of the target label,
-     * and the arc bows gently on the open side.
+     * Electron-pushing arrow, drawn the way textbooks do: the tail sits on the electrons
+     * (a lone pair or the middle of a bond), the head points straight at the atom or
+     * bond receiving them, and the shaft is a smooth arc between those two tangents.
+     * Also records `ob.path` and `ob.flow` so a following \Transform can move the
+     * electrons along it.
      */
     CurlyArrow(sc, ob) {
       const P = ob.props;
       const m0 = sc.molsIn(P.mols)[0];
-      const st = m0 ? molStyle(sc, m0) : { bondPx: 120, fs: 43, sw: 4 };
+      const st = m0 ? molStyle(sc, m0) : { bondPx: 120, fs: 43, sw: 4, gap: 20 };
       const fs = st.fs;
       const ATOM = /^@?(\d+)$/, BOND = /^@?(\d+)\s*[-=#~.:]+\s*(\d+)$/, LP = /^@?lp:(\d+)(?::(\d+))?$/;
       const from = String(P.from ?? '').trim(), to = String(P.to ?? '').trim();
-      const fromLp = LP.exec(from), fromBond = BOND.exec(from), toAtom = ATOM.exec(to), toBond = BOND.exec(to);
+      const fromLp = LP.exec(from), fromBond = BOND.exec(from), fromAtom = ATOM.exec(from);
+      const toAtom = ATOM.exec(to), toBond = BOND.exec(to);
       const atom = (m) => sc.findAtom(+m, P.mols);
       const pos = (h) => h.ob.px[h.i];
       const c = sc.molCentroid(P.mols);
       const unit = (x, y) => { const l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
-      // Side preference: away from the molecules' centroid; when that's ambiguous, upward.
-      const outward = (mx, my, nx, ny, scale) => {
-        const d = c ? (mx - c[0]) * nx + (my - c[1]) * ny : 0;
-        return Math.abs(d) > scale * 0.15 ? Math.sign(d) : ny < 0 ? 1 : -1;
+      const add = (p, v, k = 1) => [p[0] + v[0] * k, p[1] + v[1] * k];
+      // Distance from an atom centre to just outside its label (or vertex) along unit d.
+      const edge = (h, d) => {
+        const a = h.ob.mol.atoms[h.i];
+        if (!a.show) return fs * 0.2;
+        const sp = labelSpan(h.ob, h.i, fs), rx = (d[0] > 0 ? sp.right : sp.left) + fs * 0.14, ry = fs * 0.56;
+        return 1 / Math.hypot(d[0] / rx, d[1] / ry);
       };
-      // Where an arrow aimed from `src` should stop in front of atom h.
-      const approach = (h, src, extra = 0) => {
-        const [x, y] = pos(h), a = h.ob.mol.atoms[h.i];
-        const [ux, uy] = unit(x - src[0], y - src[1]);
-        let gap = fs * 0.28;
-        if (a.show) {
-          const sp = labelSpan(h.ob, h.i, fs), rx = (ux < 0 ? sp.right : sp.left) + fs * 0.22, ry = fs * 0.6;
-          gap = 1 / Math.hypot(ux / rx, uy / ry);
-        }
-        return [x - ux * (gap + extra), y - uy * (gap + extra)];
+      // Perpendicular to Q→Z pointing to the open side (away from the molecules; upward on a tie).
+      const openSide = (Q, Z) => {
+        const [ux, uy] = unit(Z[0] - Q[0], Z[1] - Q[1]);
+        let p = [-uy, ux];
+        const mx = (Q[0] + Z[0]) / 2, my = (Q[1] + Z[1]) / 2;
+        const d = c ? (mx - c[0]) * p[0] + (my - c[1]) * p[1] : 0;
+        if (Math.abs(d) > st.bondPx * 0.15 ? d < 0 : p[1] > 0) p = [-p[0], -p[1]];
+        return { u: [ux, uy], p };
+      };
+      // Bond geometry between two refs: visible centre, spread of its lines.
+      const bondInfo = (m1, m2) => {
+        const h1 = atom(m1), h2 = atom(m2);
+        if (!h1 || !h2) return null;
+        const Q = pos(h1), Z = pos(h2), { u } = openSide(Q, Z);
+        const D = Math.hypot(Z[0] - Q[0], Z[1] - Q[1]);
+        const e1 = h1.ob.mol.atoms[h1.i].show ? edge(h1, u) : 0, e2 = h2.ob.mol.atoms[h2.i].show ? edge(h2, [-u[0], -u[1]]) : 0;
+        const bd = h1.ob === h2.ob && h1.ob.mol.bonds.find((b) => (b.a === h1.i && b.b === h2.i) || (b.b === h1.i && b.a === h2.i));
+        const spread = bd && bd.order >= 2 ? (bd.side === 0 && bd.order === 2 ? st.gap / 2 : st.gap) : 0;
+        return { h1, h2, Q, Z, u, D, e1, e2, spread, mid: add(Q, u, e1 + (D - e1 - e2) / 2) };
       };
 
-      let A, B, tA = null, side = null, over = false;
-      let B0 = sc.ref(P.to, null, P.mols);
-      if (fromLp && toBond && (toBond[1] === fromLp[1] || toBond[2] === fromLp[1])) {
-        // Lone pair → a bond on the same atom (π bond forming): from the outer pair, round the outside.
-        const self = atom(fromLp[1]), oth = atom(toBond[1] === fromLp[1] ? toBond[2] : toBond[1]);
-        if (self && oth) {
-          const S = pos(self), O = pos(oth);
-          let [px, py] = unit(-(O[1] - S[1]), O[0] - S[0]);
-          if (outward((S[0] + O[0]) / 2, (S[1] + O[1]) / 2, px, py, st.bondPx) < 0) { px = -px; py = -py; }
-          const sites = self.ob.lpSites[self.i] ?? [], dirs = self.ob.lpOut[self.i] ?? [];
+      let A, tA, B, tB, hump = false;
+      const flow = { src: null, dst: null };
+      const own = (m, b) => b && (b[1] === m || b[2] === m);
+
+      if (fromLp && own(fromLp[1], toBond)) {
+        // Lone pair → a bond on the same atom (π bond forming): over the outside, down onto the bond.
+        const bi = bondInfo(fromLp[1], toBond[1] === fromLp[1] ? toBond[2] : toBond[1]);
+        if (bi) {
+          const { p } = openSide(bi.Q, bi.Z);
+          const self = bi.h1, sites = self.ob.lpSites[self.i] ?? [], dirs = self.ob.lpOut[self.i] ?? [];
           let k = 0;
-          sites.forEach((p, j) => { if ((p[0] - S[0]) * px + (p[1] - S[1]) * py > (sites[k][0] - S[0]) * px + (sites[k][1] - S[1]) * py) k = j; });
-          A = sites.length ? sites[k] : S;
-          tA = dirs[k] ?? [px, py];
-          B = [(S[0] + O[0]) / 2 + px * fs * 0.32, (S[1] + O[1]) / 2 + py * fs * 0.32];
-          side = [px, py];
+          dirs.forEach((d, j) => { if (d[0] * p[0] + d[1] * p[1] > dirs[k][0] * p[0] + dirs[k][1] * p[1]) k = j; });
+          A = sites.length ? add(sites[k], dirs[k], fs * 0.12) : add(bi.Q, p, fs * 0.6);
+          tA = dirs[k] ?? p;
+          B = add(bi.mid, p, bi.spread + fs * 0.2);
+          tB = [-p[0], -p[1]];
+          hump = true;
+          flow.src = { kind: 'lp', map: +fromLp[1], k };
+          flow.dst = { kind: 'bond', a: +toBond[1], b: +toBond[2] };
         }
-      } else if (fromBond && toAtom && (fromBond[1] === toAtom[1] || fromBond[2] === toAtom[1])) {
-        // Bond → one of its own atoms (π bond onto O, C–Br onto Br): hug the bond on its open side.
-        const tgt = atom(toAtom[1]), oth = atom(fromBond[1] === toAtom[1] ? fromBond[2] : fromBond[1]);
-        if (tgt && oth) {
-          const Z = pos(tgt), Q = pos(oth);
-          const [ux, uy] = unit(Z[0] - Q[0], Z[1] - Q[1]);
-          let px = -uy, py = ux;
-          if (outward((Z[0] + Q[0]) / 2, (Z[1] + Q[1]) / 2, px, py, st.bondPx) < 0) { px = -px; py = -py; }
-          // Visible part of the bond (between the labels), and how far its lines spread.
-          const edge = (h, dx, dy) => {
-            const a = h.ob.mol.atoms[h.i];
-            if (!a.show) return 0;
-            const sp = labelSpan(h.ob, h.i, fs), rx = (dx > 0 ? sp.right : sp.left) + fs * 0.1, ry = fs * 0.48;
-            return 1 / Math.hypot(dx / rx, dy / ry);
-          };
-          const D = Math.hypot(Z[0] - Q[0], Z[1] - Q[1]), eZ = edge(tgt, -ux, -uy), eQ = edge(oth, ux, uy);
-          const bd = tgt.ob.mol.bonds.find((b) => (b.a === tgt.i && b.b === oth.i) || (b.b === tgt.i && b.a === oth.i));
-          const spread = bd && bd.order >= 2 ? (bd.side === 0 && bd.order === 2 ? st.gap / 2 : st.gap) : 0;
-          const mid = eQ + (D - eQ - eZ) * 0.3;
-          A = [Q[0] + ux * mid + px * (spread + fs * 0.2), Q[1] + uy * mid + py * (spread + fs * 0.2)];
-          B = [Z[0] - ux * (eZ + fs * 0.06) + px * (spread + fs * 0.34), Z[1] - uy * (eZ + fs * 0.06) + py * (spread + fs * 0.34)];
-          side = [px, py];
+      } else if (fromBond && toAtom && own(toAtom[1], fromBond)) {
+        // Bond → one of its own atoms (C–Br onto Br, C=O onto O): from the bond's middle,
+        // over the open side, into the atom's free shoulder.
+        const bi = bondInfo(toAtom[1] === fromBond[1] ? fromBond[2] : fromBond[1], toAtom[1]);
+        if (bi) {
+          const { u, p } = openSide(bi.Q, bi.Z);
+          const w = unit(-u[0] * 0.75 + p[0] * 0.66, -u[1] * 0.75 + p[1] * 0.66);
+          B = add(bi.Z, w, edge(bi.h2, w) + fs * 0.04);
+          // Tail on the bond's midpoint, pulled back toward the far atom if the arc would be too short.
+          let along = Math.min(bi.D / 2, bi.D - bi.e2 - fs * 0.1);
+          const reachB = (t) => Math.hypot(bi.Q[0] + u[0] * t - B[0], bi.Q[1] + u[1] * t - B[1]);
+          while (along > bi.e1 + fs * 0.1 && reachB(along) < fs * 1.05) along -= fs * 0.05;
+          A = add(add(bi.Q, u, along), p, bi.spread + fs * 0.06);
+          tA = unit(p[0] + u[0] * 0.2, p[1] + u[1] * 0.2);
+          tB = [-w[0], -w[1]];
+          hump = true;
+          flow.src = { kind: 'bond', a: +fromBond[1], b: +fromBond[2] };
+          flow.dst = { kind: 'atom', map: +toAtom[1] };
         }
-      } else {
+      }
+
+      if (!A) {
+        // Generic: a gentle symmetric arc from the electrons to the target.
+        const tgtAtom = toAtom && atom(toAtom[1]);
+        const tb = toBond && bondInfo(toBond[1], toBond[2]);
+        const T0 = tgtAtom ? pos(tgtAtom) : tb ? tb.mid : sc.ref(P.to, null, P.mols);
+        let lpDir = null;
         if (fromLp) {
           const self = atom(fromLp[1]);
           const sites = self ? self.ob.lpSites[self.i] ?? [] : [], dirs = self ? self.ob.lpOut[self.i] ?? [] : [];
           if (sites.length) {
-            // The pair facing the target, tail just outside the dots.
-            const S = pos(self), [gx, gy] = unit(B0[0] - S[0], B0[1] - S[1]);
+            const S = pos(self), [gx, gy] = unit(T0[0] - S[0], T0[1] - S[1]);
             let k = fromLp[2] ? Math.min(sites.length - 1, +fromLp[2] - 1) : 0;
             if (!fromLp[2]) dirs.forEach((d, j) => { if (d[0] * gx + d[1] * gy > dirs[k][0] * gx + dirs[k][1] * gy) k = j; });
-            tA = dirs[k];
-            A = [sites[k][0] + tA[0] * fs * 0.2, sites[k][1] + tA[1] * fs * 0.2];
-          } else A = sc.ref(P.from, B0, P.mols);
-        } else A = sc.ref(P.from, B0, P.mols);
-        const h = toAtom && atom(toAtom[1]), ta = h && h.ob.mol.atoms[h.i];
-        if (ta && ta.show && ta.hs > 0 && (ta.hleft ? A[0] < pos(h)[0] : A[0] > pos(h)[0]) && Math.abs(A[1] - pos(h)[1]) < Math.abs(A[0] - pos(h)[0])) {
-          // The H label (H₃C–) faces the attacker: arc over it and land on top of the C.
-          B = [pos(h)[0], pos(h)[1] - fs * 0.72];
-          over = true;
-        } else if (h) B = approach(h, A);
-        else if (toAtom) B = B0;
-        else B = sc.ref(P.to, A, P.mols);
-        if (fromBond) {
-          // Tail beside the bond, on the side the arrow is heading.
-          const p1 = sc.ref(fromBond[1], null, P.mols), p2 = sc.ref(fromBond[2], null, P.mols);
-          let [nx, ny] = unit(-(p2[1] - p1[1]), p2[0] - p1[0]);
-          if ((B[0] - A[0]) * nx + (B[1] - A[1]) * ny < 0) { nx = -nx; ny = -ny; }
-          A = [A[0] + nx * fs * 0.22, A[1] + ny * fs * 0.22];
+            lpDir = dirs[k];
+            A = add(sites[k], lpDir, fs * 0.12);
+            flow.src = { kind: 'lp', map: +fromLp[1], k };
+          } else A = sc.ref(P.from, T0, P.mols);
+        } else if (fromBond) {
+          const bi = bondInfo(fromBond[1], fromBond[2]);
+          A = bi ? bi.mid : sc.ref(P.from, T0, P.mols);
+          if (bi) {
+            // Sit on the line facing the target.
+            let n = [-bi.u[1], bi.u[0]];
+            if ((T0[0] - A[0]) * n[0] + (T0[1] - A[1]) * n[1] < 0) n = [-n[0], -n[1]];
+            A = add(A, n, bi.spread);
+            lpDir = n;
+            flow.src = { kind: 'bond', a: +fromBond[1], b: +fromBond[2] };
+          }
+        } else if (fromAtom) {
+          const h = atom(fromAtom[1]);
+          A = h ? add(pos(h), unit(T0[0] - pos(h)[0], T0[1] - pos(h)[1]), edge(h, unit(T0[0] - pos(h)[0], T0[1] - pos(h)[1]))) : sc.ref(P.from, T0, P.mols);
+        } else A = sc.ref(P.from, T0, P.mols);
+
+        const [ux, uy] = unit(T0[0] - A[0], T0[1] - A[1]), n = [-uy, ux];
+        let sgn;
+        const lean = lpDir ? lpDir[0] * n[0] + lpDir[1] * n[1] : 0;
+        if (Math.abs(lean) > 0.25) sgn = Math.sign(lean);
+        else {
+          const mx = (A[0] + T0[0]) / 2, my = (A[1] + T0[1]) / 2, d = c ? (mx - c[0]) * n[0] + (my - c[1]) * n[1] : 0;
+          sgn = Math.abs(d) > st.bondPx * 0.15 ? Math.sign(d) : n[1] < 0 ? 1 : -1;
         }
+        const bend = P.bend !== undefined ? sc.num(P.bend) : 1;
+        sgn *= Math.sign(bend) || 1;
+        const th = 0.38 * Math.abs(bend); // ≈ 22° each end
+        const rot = (v, t) => [v[0] * Math.cos(t) - v[1] * Math.sin(t), v[0] * Math.sin(t) + v[1] * Math.cos(t)];
+        // Rotation by +t turns u toward n in px space when n = (−uy, ux).
+        const depart = rot([ux, uy], th * sgn), arrive = rot([ux, uy], -th * sgn);
+        tA = lpDir ? unit(lpDir[0] * 0.45 + depart[0] * 0.55, lpDir[1] * 0.45 + depart[1] * 0.55) : depart;
+        const hFaces = tgtAtom && (() => {
+          const a = tgtAtom.ob.mol.atoms[tgtAtom.i], Z = pos(tgtAtom);
+          return a.show && a.hs > 0 && (a.hleft ? A[0] < Z[0] : A[0] > Z[0]) && Math.abs(A[1] - Z[1]) < Math.abs(A[0] - Z[0]);
+        })();
+        if (hFaces) {
+          // The H label (H₃C–) faces the attacker: come over it and down onto the C.
+          const Z = pos(tgtAtom);
+          B = [Z[0], Z[1] - fs * 0.66];
+          tB = [0, 1];
+          tA = lpDir ? unit(lpDir[0] * 0.5, lpDir[1] * 0.5 - 0.5) : unit(ux, uy - 0.6);
+        } else if (tgtAtom) {
+          B = add(T0, arrive, -edge(tgtAtom, [-arrive[0], -arrive[1]]));
+          tB = arrive;
+        } else {
+          B = T0;
+          tB = arrive;
+        }
+        if (toAtom) flow.dst = { kind: 'atom', map: +toAtom[1] };
+        else if (toBond) flow.dst = { kind: 'bond', a: +toBond[1], b: +toBond[2] };
       }
 
-      const L = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, ux = (B[0] - A[0]) / L, uy = (B[1] - A[1]) / L;
-      const nx = -uy, ny = ux;
-      let sgn;
-      if (side) sgn = side[0] * nx + side[1] * ny > 0 ? 1 : -1;
-      else if (over) sgn = ny < 0 ? 1 : -1;
-      else if (tA && Math.abs(tA[0] * nx + tA[1] * ny) > 0.25) sgn = Math.sign(tA[0] * nx + tA[1] * ny); // leave the pair smoothly
-      else sgn = outward((A[0] + B[0]) / 2, (A[1] + B[1]) / 2, nx, ny, L);
-      const bend = P.bend !== undefined ? sc.num(P.bend) : 1;
-      sgn *= Math.sign(bend) || 1;
-      const h = (side ? Math.max(fs * 0.6, Math.min(fs * 1.1, L * 1.1)) : Math.max(st.bondPx * 0.22, L * (over ? 0.22 : 0.13))) * Math.abs(bend);
-      let c1 = [A[0] + ux * L * 0.25 + nx * h * sgn, A[1] + uy * L * 0.25 + ny * h * sgn];
-      const c2 = [A[0] + ux * L * 0.75 + nx * h * sgn, A[1] + uy * L * 0.75 + ny * h * sgn];
-      if (tA && !side) {
-        // Start tangent to the lone pair's outward direction.
-        const k = Math.max(fs * 0.6, L * 0.3);
-        c1 = [A[0] + tA[0] * k * 0.6 + (c1[0] - A[0]) * 0.4, A[1] + tA[1] * k * 0.6 + (c1[1] - A[1]) * 0.4];
-      }
-      const tx = B[0] - c2[0], ty = B[1] - c2[1], tl = Math.hypot(tx, ty) || 1;
-      const hx = tx / tl, hy = ty / tl, HL = Math.max(fs * 0.5, st.bondPx * 0.17), HW = HL * 0.36;
-      const end = [B[0] - hx * HL * 0.7, B[1] - hy * HL * 0.7];
+      const HL = Math.max(fs * 0.48, st.bondPx * 0.16), HW = HL * 0.38;
+      const E = add(B, tB, -HL * 0.72); // shaft ends inside the head
+      const L = Math.hypot(E[0] - A[0], E[1] - A[1]) || 1;
+      const k = hump ? Math.max(fs * 0.7, L * 0.62) : L * 0.4;
+      const c1 = add(A, tA, k), c2 = add(E, tB, -k);
+      ob.path = { A, c1, c2, E, B, tB };
+      ob.flow = flow;
       const color = P.color ?? 'var(--orange)';
       if (!ob.built) {
         ob.shaft = svgEl('path', { fill: 'none', 'stroke-linecap': 'round' }, ob.g);
         ob.shaft.style.stroke = color; ob.shaft.style.strokeWidth = P.width ?? st.sw * 0.85;
-        ob.tip = svgEl('path', { stroke: 'none', 'stroke-linejoin': 'round' }, ob.g); ob.tip.style.fill = color;
+        ob.tip = svgEl('path', { stroke: 'none' }, ob.g); ob.tip.style.fill = color;
         ob.strokes = [ob.shaft];
         ob.built = true;
       }
-      ob.shaft.setAttribute('d', `M${A[0]},${A[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${end[0]},${end[1]}`);
+      ob.shaft.setAttribute('d', `M${A[0]},${A[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${E[0]},${E[1]}`);
       // Slightly swept-back head: tip, wing, notch, wing.
-      const bx = B[0] - hx * HL, by = B[1] - hy * HL;
-      const wing = (s) => [bx - hy * HW * s, by + hx * HW * s];
+      const [hx, hy] = tB, bx = B[0] - hx * HL, by = B[1] - hy * HL;
+      const wing = (sd) => [bx - hy * HW * sd, by + hx * HW * sd];
       const [w1, w2] = [wing(1), wing(-1)], notch = [B[0] - hx * HL * 0.78, B[1] - hy * HL * 0.78];
       ob.tip.setAttribute('d', P.fishhook
-        ? `M${B[0]},${B[1]}L${(sgn > 0 ? w1 : w2).join(',')}L${notch.join(',')}Z`
+        ? `M${B[0]},${B[1]}L${w1.join(',')}L${notch.join(',')}Z`
         : `M${B[0]},${B[1]}L${w1.join(',')}L${notch.join(',')}L${w2.join(',')}Z`);
     },
   });
@@ -1082,9 +1158,13 @@
     }
 
     /**
-     * Mechanism morph. Persisting (mapped) atoms glide; what disappears fades out over the
-     * first half, what appears fades in over the second half; labels, lone pairs and charges
-     * only crossfade when they actually change.
+     * Mechanism morph, in two acts when curly arrows lead into it:
+     *  1. push: each arrow's electron pair travels along it (the arrow is used up behind
+     *     it); bonds that lose their electrons fade as they leave, and on arrival the pair
+     *     becomes a lone pair or a new π bond; charges move with the electrons.
+     *  2. relax: atoms glide (swinging about persisting bonds) into the product while new
+     *     σ bonds draw out of the attacking atom.
+     * Without arrows it is a single concerted glide.
      */
     morphMolecule(ev) {
       const srcs = ev.sources.map((id) => this.objs[id]).filter(Boolean);
@@ -1092,9 +1172,17 @@
       if (!tgt) return null;
       const key = (m1, m2, o) => `${Math.min(m1, m2)}-${Math.max(m1, m2)}:${o}`;
       const fadeOut = (a) => clamp01(1 - a / 0.45), fadeIn = (a) => clamp01((a - 0.55) / 0.45);
+      const win = (p, a0, a1) => clamp01((p - a0) / (a1 - a0));
+      // Arrows drawn on these molecules are the ones this step "pushes".
+      const flowObs = ev.flow === false ? [] : Object.values(this.objs).filter((o) => o.kind === 'CurlyArrow' &&
+        String(o.props.mols ?? '').split(',').some((id) => ev.sources.includes(id)));
+      const flowMode = flowObs.length > 0;
+      const PUSH = 0.58, MOVE = 0.12;
       let match = [], labelSame = [], decoSame = [], bondMatch = [], orderMorph = [], outs = [], plan = [], stereoSrc = [], ghosts = [], arrows = [], grow = [];
+      let flows = [], tokG = null, skipLp = new Map(), landLp = new Map(), growMid = new Set(), hflip = [];
       return {
-        dur: ev.run ?? 1.6,
+        dur: ev.run ?? (flowMode ? 2.8 : 1.6),
+        rate: (p) => p,
         begin: () => {
           const srcAtom = new Map(), srcBond = new Set();
           for (const s of srcs) {
@@ -1132,6 +1220,10 @@
           }
           const labelOf = (a) => (a.show ? `${a.sym}|${a.hs}|${a.hs > 0 && a.hleft}` : '');
           labelSame = tAtoms.map((a, i) => !!match[i] && labelOf(match[i].a) === labelOf(a));
+          // H₃C– ↔ –CH₃: the H side flips halfway through the motion (with a brief dip), not at the start.
+          // (`hleft0` keeps the true value even if a run is cancelled mid-flip.)
+          tAtoms.forEach((a) => { if (a.hleft0 === undefined) a.hleft0 = a.hleft; a.hleft = a.hleft0; });
+          hflip = tAtoms.map((a, i) => (match[i] && a.show && a.hs > 0 && match[i].a.show && match[i].a.sym === a.sym && match[i].a.hs === a.hs && match[i].a.hleft !== a.hleft ? { from: match[i].a.hleft, to: a.hleft } : null));
           decoSame = tAtoms.map((a, i) => !!match[i] && match[i].a.lp === a.lp && match[i].a.charge === a.charge);
           bondMatch = tgt.mol.bonds.map((b) => !!(tAtoms[b.a].map && tAtoms[b.b].map && srcBond.has(key(tAtoms[b.a].map, tAtoms[b.b].map, b.order))));
           // Same atom pair, different order (π bond made or broken): morph it in place.
@@ -1176,44 +1268,163 @@
               } else outs.push(s.bondEls[i]);
             });
           }
-          // Electron-pushing arrows have done their job once the mechanism step happens.
-          arrows = Object.values(this.objs).filter((o) => o.kind === 'CurlyArrow' && !o.g.classList.contains('hidden-step')).map((o) => o.g);
+          // Electron flow along this step's arrows; any other visible arrows simply fade.
+          const live = (o) => !o.g.classList.contains('hidden-step');
+          arrows = Object.values(this.objs).filter((o) => o.kind === 'CurlyArrow' && live(o) && !flowObs.includes(o)).map((o) => o.g);
+          flows = []; skipLp = new Map(); landLp = new Map(); growMid = new Set();
+          const tIdx = (m) => tAtoms.findIndex((x) => x.map === m);
+          if (tokG) tokG.remove();
+          tokG = flowObs.length ? svgEl('g', {}, this.svg) : null;
+          const st = molStyle(this, tgt);
+          for (const o of flowObs) {
+            if (!live(o) || !o.path) continue;
+            const f = o.flow ?? {};
+            const len = o.shaft.getTotalLength?.() || 0;
+            const col = o.props.color ?? 'var(--orange)';
+            const dots = [0, 1].map(() => { const c = svgEl('circle', { r: Math.max(2.6, st.fs * 0.085) }, tokG); c.style.opacity = 0; return c; });
+            let start = o.path.A, fade = true;
+            if (f.src?.kind === 'lp') {
+              const ti = tIdx(f.src.map);
+              if (ti >= 0) { skipLp.set(ti, f.src.k); const sm = match[ti]; const site = sm?.s.lpSites?.[sm.i]?.[f.src.k]; if (site) start = site; }
+            }
+            if (f.dst?.kind === 'atom') {
+              const ti = tIdx(f.dst.map);
+              // The pair settles as a new lone pair if the atom gains one.
+              if (ti >= 0 && match[ti] && tAtoms[ti].lp > match[ti].a.lp && !landLp.has(ti)) { landLp.set(ti, { pt: o.path.B, col }); fade = false; }
+            } else if (f.dst?.kind === 'bond') {
+              const bi = tgt.mol.bonds.findIndex((b) => key(tAtoms[b.a].map, tAtoms[b.b].map, 0) === key(f.dst.a, f.dst.b, 0));
+              if (bi >= 0 && orderMorph[bi]?.forming) growMid.add(bi);
+            }
+            // A bond giving up its electrons to one of its own atoms shrinks toward that atom.
+            if (f.src?.kind === 'bond' && f.dst?.kind === 'atom' && (f.dst.map === f.src.a || f.dst.map === f.src.b)) {
+              const to = tIdx(f.dst.map), oth = tIdx(f.dst.map === f.src.a ? f.src.b : f.src.a);
+              for (const g of ghosts) if ((g.i === to && g.j === oth) || (g.j === to && g.i === oth)) g.toward = to;
+              tgt.mol.bonds.forEach((b, bi) => { if (orderMorph[bi] && !orderMorph[bi].forming && ((b.a === to && b.b === oth) || (b.b === to && b.a === oth))) orderMorph[bi].toward = to; });
+            }
+            const sAt = (m) => { const ti = tIdx(m); return ti >= 0 && match[ti] ? ti : -1; };
+            const ends = (r) => (r?.kind === 'lp' || r?.kind === 'atom' ? [sAt(r.map)] : r?.kind === 'bond' ? [sAt(r.a), sAt(r.b)] : []).filter((x) => x >= 0);
+            // A lone pair attacking an atom becomes the new σ bond: it heads for the bond's midpoint
+            // and the bond grows outward from there.
+            let bondMid = null;
+            if (f.src?.kind === 'lp' && f.dst?.kind === 'atom') {
+              const x = tIdx(f.src.map), y2 = tIdx(f.dst.map);
+              const bi = tgt.mol.bonds.findIndex((b) => (b.a === x && b.b === y2) || (b.b === x && b.a === y2));
+              if (bi >= 0 && grow[bi]) { grow[bi].mid = true; bondMid = [x, y2]; }
+            }
+            flows.push({ o, len, col, dots, start, fade, bondMid, sep: st.fs * 0.14, srcAt: ends(f.src), dstAt: ends(f.dst), path0: { ...o.path } });
+          }
           reveal(tgt.g);
         },
-        tick: (a) => {
-          const fi = fadeIn(a);
+        tick: (p) => {
+          const mv = flowMode ? smooth(win(p, MOVE, 0.95)) : smooth(p);
+          const push = smooth(win(p, 0, PUSH));
+          const fi = flowMode ? win(p, 0.62, 0.92) : fadeIn(mv);
+          const fo = flowMode ? 1 - win(p, 0.36, 0.66) : fadeOut(mv);
+          const breakA = flowMode ? 1 - win(p, 0.02, 0.22) : 1 - clamp01((mv - 0.2) / 0.6);
           const T = tgt.mol.atoms, P = [];
+          hflip.forEach((h, i) => { if (h) T[i].hleft = mv < 0.5 ? h.from : h.to; });
           for (const { i, parent } of plan) {
             const m = match[i]?.pos, t = T[i];
-            if (parent < 0 || !match[parent]) { P[i] = m ? [m[0] + (t.x - m[0]) * a, m[1] + (t.y - m[1]) * a] : [t.x, t.y]; continue; }
+            if (parent < 0 || !match[parent]) { P[i] = m ? [m[0] + (t.x - m[0]) * mv, m[1] + (t.y - m[1]) * mv] : [t.x, t.y]; continue; }
             const mp = match[parent].pos, tp = T[parent];
             const sa = Math.atan2(m[1] - mp[1], m[0] - mp[0]), ta = Math.atan2(t.y - tp.y, t.x - tp.x);
             let da = ta - sa;
             while (da > Math.PI) da -= 2 * Math.PI;
             while (da < -Math.PI) da += 2 * Math.PI;
-            const ang = sa + da * a, len = Math.hypot(m[0] - mp[0], m[1] - mp[1]) * (1 - a) + Math.hypot(t.x - tp.x, t.y - tp.y) * a;
+            const ang = sa + da * mv, len = Math.hypot(m[0] - mp[0], m[1] - mp[1]) * (1 - mv) + Math.hypot(t.x - tp.x, t.y - tp.y) * mv;
             P[i] = [P[parent][0] + Math.cos(ang) * len, P[parent][1] + Math.sin(ang) * len];
           }
+          const landT = flowMode ? smooth(win(p, PUSH, PUSH + 0.25)) : 0;
           RENDER.Molecule(this, tgt, {
             pos: (i) => P[i] ?? [T[i].x, T[i].y],
             // A persisting atom's label travels with it; if its text changes (OH → HO) it brightens in place.
-            atomAlpha: (i) => (labelSame[i] ? 1 : match[i] ? 0.45 + 0.55 * a : fi),
+            atomAlpha: (i) => (labelSame[i] ? 1 : hflip[i] ? 0.3 + 0.7 * Math.abs(2 * mv - 1) : match[i] ? 0.45 + 0.55 * mv : fi),
             decoAlpha: (i) => (decoSame[i] || match[i] ? 1 : fi),
-            decoMorph: (i) => (match[i] && !decoSame[i] ? { lp: match[i].a.lp, from: (match[i].s.lpOut?.[match[i].i] ?? []).map(([x, y]) => Math.atan2(y, x)), charge: match[i].a.charge, a, fi, fo: fadeOut(a) } : null),
-            bondGrow: (i) => grow[i] && { fromB: grow[i].fromB, t: clamp01((a - 0.3) / 0.6) },
-            ghostBonds: ghosts.map((g) => ({ ...g, alpha: 1 - clamp01((a - 0.2) / 0.6) })),
+            decoMorph: (i) => (match[i] && !decoSame[i] ? {
+              lp: match[i].a.lp, from: (match[i].s.lpOut?.[match[i].i] ?? []).map(([x, y]) => Math.atan2(y, x)),
+              charge: match[i].a.charge, a: mv,
+              fi: flowMode ? win(p, 0.5, 0.75) : fi, fo: flowMode ? 1 - win(p, 0.3, 0.5) : fadeOut(mv),
+              cfo: flowMode ? 1 - win(p, 0.05, 0.3) : fadeOut(mv), cfi: flowMode ? win(p, PUSH - 0.06, PUSH + 0.14) : fi,
+              skip: skipLp.get(i), land: landLp.has(i) ? { ...landLp.get(i), t: p >= PUSH ? landT : -1 } : null,
+            } : null),
+            bondGrow: (i) => grow[i] && (grow[i].mid
+              ? { mid: true, t: smooth(win(p, PUSH - 0.04, PUSH + 0.24)) }
+              : { fromB: grow[i].fromB, t: flowMode ? smooth(win(p, 0.42, 0.85)) : clamp01((mv - 0.3) / 0.6) }),
+            ghostBonds: ghosts.map((g) => (flowMode && g.toward !== undefined ? { ...g, alpha: 1, keep: 1 - push } : { ...g, alpha: breakA })),
             bondAlpha: (i) => (bondMatch[i] || orderMorph[i] || grow[i] ? 1 : fi),
-            bondStereo: (i) => (stereoSrc[i] && a < 0.5 ? stereoSrc[i] : stereoSrc[i] ? { stereo: tgt.mol.bonds[i].stereo, narrowAtB: false } : null),
-            // Concerted: π bonds break / form across the middle of the motion, alongside the new σ bond.
-            bondOrder: (i) => { const m = orderMorph[i]; return m && { ...m, extra: m.forming ? clamp01((a - 0.3) / 0.6) : 1 - clamp01((a - 0.2) / 0.6) }; },
+            bondStereo: (i) => (stereoSrc[i] && mv < 0.5 ? stereoSrc[i] : stereoSrc[i] ? { stereo: tgt.mol.bonds[i].stereo, narrowAtB: false } : null),
+            bondOrder: (i) => {
+              const m = orderMorph[i];
+              if (!m) return null;
+              if (!m.forming) return flowMode && m.toward !== undefined ? { ...m, extra: 1, keep: 1 - push, towardA: tgt.mol.bonds[i].a === m.toward } : { ...m, extra: breakA };
+              if (growMid.has(i)) return { ...m, extra: 1, growMid: smooth(win(p, PUSH - 0.02, PUSH + 0.2)) };
+              return { ...m, extra: flowMode ? win(p, PUSH, PUSH + 0.25) : clamp01((mv - 0.3) / 0.6) };
+            },
           });
-          const fo = fadeOut(a);
           for (const el of outs) el.style.opacity = fo;
-          for (const el of arrows) el.style.opacity = clamp01(1 - a / 0.25);
+          for (const el of arrows) el.style.opacity = clamp01(1 - p / 0.25);
+          // Electron pairs riding the arrows. Arrows stay pinned to their atoms as they move.
+          const shift = (idx) => {
+            if (!idx.length) return [0, 0];
+            let dx = 0, dy = 0;
+            for (const ti of idx) { const m = match[ti]; dx += tgt.px[ti][0] - m.s.px[m.i][0]; dy += tgt.px[ti][1] - m.s.px[m.i][1]; }
+            return [dx / idx.length, dy / idx.length];
+          };
+          for (const f of flows) {
+            const dS = shift(f.srcAt), dD = shift(f.dstAt), q = f.path0;
+            const mv2 = (pt, d) => [pt[0] + d[0], pt[1] + d[1]];
+            f.o.path = { ...q, A: mv2(q.A, dS), c1: mv2(q.c1, dS), c2: mv2(q.c2, dD), E: mv2(q.E, dD), B: mv2(q.B, dD) };
+            f.start = f.start0 ? mv2(f.start0, dS) : (f.start0 = f.start);
+            const { A, c1, c2, E, B } = f.o.path;
+            f.o.shaft.setAttribute('d', `M${A[0]},${A[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${E[0]},${E[1]}`);
+            f.o.tip.setAttribute('transform', `translate(${dD[0]},${dD[1]})`);
+            f.len = f.o.shaft.getTotalLength?.() || f.len;
+            const bz = (t) => {
+              const u = 1 - t;
+              return [u * u * u * A[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * E[0],
+                u * u * u * A[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * E[1]];
+            };
+            const s = push;
+            let pt = bz(s);
+            if (s < 0.1) { const k = s / 0.1; pt = [f.start[0] + (pt[0] - f.start[0]) * k, f.start[1] + (pt[1] - f.start[1]) * k]; }
+            let sink = f.fade ? win(p, PUSH, PUSH + 0.1) : 0;
+            if (f.bondMid) {
+              // Drift off the arrow toward the forming bond's middle, then dissolve into it.
+              const [x, y2] = f.bondMid, M = [(tgt.px[x][0] + tgt.px[y2][0]) / 2, (tgt.px[x][1] + tgt.px[y2][1]) / 2];
+              const w = smooth(win(s, 0.55, 1));
+              pt = [pt[0] + (M[0] - pt[0]) * w, pt[1] + (M[1] - pt[1]) * w];
+              if (p > PUSH) pt = M;
+              sink = win(p, PUSH, PUSH + 0.14);
+            } else if (sink > 0) pt = [E[0] + (B[0] - E[0]) * sink, E[1] + (B[1] - E[1]) * sink];
+            const ahead = bz(Math.min(1, s + 0.03)), behind = bz(Math.max(0, Math.min(s, 0.97) - 0.03));
+            const tl = Math.hypot(ahead[0] - behind[0], ahead[1] - behind[1]) || 1;
+            const nx = -(ahead[1] - behind[1]) / tl, ny = (ahead[0] - behind[0]) / tl;
+            const alpha = p <= 0 ? 0 : f.fade ? 1 - sink : p >= PUSH ? 0 : 1;
+            const col = s < 0.15 ? `color-mix(in srgb, ${f.col} ${Math.round(s / 0.15 * 100)}%, ${tgt.props.color ?? 'var(--fg)'})` : f.col;
+            f.dots.forEach((d, j) => {
+              const sd = j ? 1 : -1;
+              const sep = f.sep * (1 - sink * 0.7);
+              d.setAttribute('cx', pt[0] + nx * sep * sd); d.setAttribute('cy', pt[1] + ny * sep * sd);
+              d.style.fill = col; d.style.opacity = alpha;
+            });
+            // The arrow is used up behind the electrons; its head goes as they arrive.
+            if (f.len) { f.o.shaft.style.strokeDasharray = f.len; f.o.shaft.style.strokeDashoffset = (2 - s) * f.len; }
+            f.o.tip.style.opacity = 1 - win(s, 0.5, 0.78);
+            if (f.bondMid) f.o.shaft.style.opacity = 1 - win(s, 0.55, 0.8); // the pair has left the arrow
+          }
         },
         end: () => {
           for (const s of srcs) s.g.classList.add('hidden-step');
           for (const el of [...outs, ...arrows]) if (el.parentNode === this.svg) { el.classList.add('hidden-step'); el.style.opacity = ''; }
+          for (const f of flows) {
+            f.o.g.classList.add('hidden-step');
+            f.o.shaft.style.strokeDasharray = ''; f.o.shaft.style.strokeDashoffset = ''; f.o.tip.style.opacity = ''; f.o.shaft.style.opacity = '';
+            f.o.tip.removeAttribute('transform'); f.o.path = f.path0;
+            const { A, c1, c2, E } = f.path0;
+            f.o.shaft.setAttribute('d', `M${A[0]},${A[1]}C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${E[0]},${E[1]}`);
+          }
+          tokG?.remove(); tokG = null;
+          hflip.forEach((h, i) => { if (h) tgt.mol.atoms[i].hleft = h.to; });
           RENDER.Molecule(this, tgt);
         },
       };

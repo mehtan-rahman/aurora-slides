@@ -103,7 +103,10 @@ aurora reference                    # every scene command, key, and default
   `lp:1` (lone pair on atom 1). Inside other objects, use `at=@2` with `offset={0.3,0.3}`.
 - Separate the products with `.`, e.g. a leaving group `.[Br-:4]`. Each fragment
   stays near where its atoms were.
-- Curly arrows fade out automatically when the next `\Transform` happens.
+- The next `\Transform` animates the curly arrows as arrow pushing: electron pairs
+  travel along them, then the atoms move into the product. Draw one arrow per
+  electron pair, from where the electrons are to where they go. Add `flow=false`
+  for a plain morph.
 - Reactants turn automatically to face their curly arrows (nucleophile toward the
   target, leaving group anti), so don't fight it with coordinates. Use `rotate=`
   or `orient=false` only if you need a specific drawing.

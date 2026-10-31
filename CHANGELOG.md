@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Arrow-pushing animation.** When curly arrows lead into `\Transform`, the step plays like a textbook mechanism:
+  - Electron pairs travel along the arrows, using them up as they go.
+  - Bonds shrink toward the atom receiving their electrons, and pairs land as lone pairs or new π/σ bonds.
+  - Charges move with the electrons, then the atoms relax into the product.
+  - `flow=false` opts out.
+- Curly arrows follow textbook conventions: tails sit on the electrons, and heads point straight at the receiving atom or bond along smooth arcs.
+- Fix: a mechanism step cancelled mid-animation no longer leaves an atom label flipped (e.g. "HOH₃C").
 - Chemistry looks and moves like a textbook:
   - Reactants auto-orient to their curly arrows (backside SN2, nucleophile lone pair facing the target). `orient=false` opts out.
   - Lone pairs sit on the free sides of the label, and charges take a free corner. Lone pairs carry through `\Transform`.

@@ -129,9 +129,13 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
   (`[C:2]`) name atoms.
 - `\CurlyArrow[from=lp:5, to=2]`: refs are `N` (atom), `N-M`/`N=M` (bond, or a
   forming bond's midpoint), and `lp:N` (lone pair). Add `fishhook` for radical chemistry.
-- `\Transform[id={a,b}]{product SMILES}`: mapped atoms move; new bonds grow
-  out of the attacking atom while broken ones stretch and fade; lone pairs slide
-  round to their new places. Separate fragments with `.`.
+- `\Transform[id={a,b}]{product SMILES}` animates the step as **arrow pushing**.
+  Each curly arrow's electron pair travels along it and uses the arrow up as it
+  goes. A bond giving up its electrons shrinks toward the atom receiving them. On
+  arrival the pair becomes a lone pair, a new π bond, or (from a nucleophile) the
+  new σ bond, which grows outward from it. Charges move with the electrons, and
+  the atoms then relax into the product. Separate product fragments with `.`. Use
+  `flow=false` for a plain morph.
 - Reactants turn themselves to face their curly arrows: the nucleophile's lone
   pairs point at the target, and a leaving group sits anti to the attack (true
   backside SN2). Give `rotate=` or `orient=false` to place a molecule yourself.
