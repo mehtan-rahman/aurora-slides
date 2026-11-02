@@ -153,11 +153,29 @@ body.presenter #stage { background: var(--bg); outline: 3px solid #2a2e35; borde
   font-family: var(--sans); color: var(--fg); background: #1c1f24; border-left: 1px solid #2a2e35;
 }
 .pv-top { display: flex; justify-content: space-between; align-items: baseline; color: var(--muted); font-size: 15px; }
-.pv-timer { font-size: 34px; color: var(--white); font-variant-numeric: tabular-nums; cursor: pointer; }
-.pv-next { color: var(--orange); font-size: 17px; }
-.pv-notes { flex: 1; overflow: auto; font-size: 24px; line-height: 1.5; }
+.pv-time { display: flex; align-items: baseline; gap: 14px; }
+.pv-timer { font-size: 44px; color: var(--white); font-variant-numeric: tabular-nums; cursor: pointer; line-height: 1; }
+.pv-timer.warn { color: var(--orange); }
+.pv-timer.over { color: var(--red); }
+.pv-sub { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.pv-pace { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: -8px; }
+.pv-pace i { display: block; height: 4px; border-radius: 2px; background: var(--muted); width: 0; }
+.pv-pace i.pv-pace-s { background: var(--blue); }
+.pv-next-label { color: var(--orange); font-size: 16px; margin-bottom: 8px; }
+.pv-frame { position: relative; aspect-ratio: var(--pv-aspect, 16 / 9); border-radius: 6px; overflow: hidden; outline: 1px solid #2a2e35; background: var(--bg); }
+.pv-preview { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.pv-endcard { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--dim); font-size: 18px; background: var(--bg); }
+.pv-next.end .pv-endcard { display: flex; }
+.pv-notes { flex: 1; overflow: auto; font-size: calc(24px * var(--pv-notes, 1)); line-height: 1.5; }
+.pv-note + .pv-note { margin-top: .6em; }
+/* A note that just appeared on this step (\note<2>{…}) is marked. */
+.pv-note.fresh { border-left: 3px solid var(--orange); padding-left: 12px; }
 .pv-empty { color: var(--dim); font-size: 17px; }
 .pv-help { color: var(--dim); font-size: 13px; }
+/* ?preview: the speaker view's next-step pane. */
+html.preview body { cursor: default; pointer-events: none; }
+html.preview .pagenum { display: none; }
+html.preview-end #stage { visibility: hidden; }
 
 /* Overview grid (o) */
 body.overview { overflow: auto; }
@@ -379,3 +397,8 @@ body.lasering { cursor: none; }
 .snapping .fx, .snapping .fx * { transition: none !important; }
 .body [style*="color:"] strong, .body .alert strong, .body .fx-color.on strong, .body .fx-alert.on strong { color: inherit; }
 #print .print-page:has(> footer.infolines) > .pagenum { bottom: 9px; right: 40px; font-size: 17px; }
+/* aurora pdf --notes: a notes page after each slide that has notes. */
+#print .notes-page { flex-direction: column; justify-content: flex-start; gap: 28px; padding: 90px 140px; box-sizing: border-box; font-family: var(--sans); font-size: 34px; line-height: 1.5; color: var(--fg); }
+#print .notes-page .np-head { color: var(--muted); font-size: 24px; letter-spacing: .02em; border-bottom: 1px solid color-mix(in srgb, var(--fg) 15%, transparent); padding-bottom: 14px; }
+#print .notes-page .np-step { display: inline-block; color: var(--accent, var(--orange)); font-size: 20px; text-transform: uppercase; letter-spacing: .06em; margin-right: 14px; }
+#print .notes-page p { margin: 0; display: inline; }

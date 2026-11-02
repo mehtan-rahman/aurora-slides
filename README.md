@@ -77,13 +77,20 @@ In the browser:
 | → / space / click | Next step. If an animation is still running, the first press finishes it. |
 | ← | Previous step (snaps to that step's final state) |
 | `o` | Overview grid |
-| `s` | Speaker view in a second window (notes, next step, timer, clock), kept in sync |
+| `s` | Speaker view in a second window, kept in sync: the current slide, a live preview of what the next click shows, this step's notes, a clock, and a talk timer |
 | `12` ⏎ | Go to slide 12 |
 | `b` / `w` | Black / white screen |
 | `l` | Laser pointer (also shown in the speaker window) |
 | `f` | Fullscreen |
 | ⌘P / Ctrl-P | Print or save as PDF, one page per frame |
 | `?` | Help |
+
+In the speaker view:
+- The timer starts on your first click. `t` pauses it, and clicking it resets it.
+- With `\auroraduration{20}` in the preamble (or pdfpc's `\pdfpcsetup{duration=20}`), it counts down: it turns orange in the last two minutes and red when you run over. Thin bars compare the time used with the slides shown.
+- `+` and `−` resize the notes.
+- `\note<2>{…}` shows a note only on step 2; a newly appeared note is marked.
+- `aurora pdf --notes` prints a notes page after each slide that has notes.
 
 ## Writing slides
 
@@ -102,7 +109,7 @@ In the browser:
 | `tikzpicture` (with `\pause` and `\draw<2->`), `\chemfig`, `circuitikz`, `pgfplots`, `\begin{latex}…\end{latex}` | Compiled with your LaTeX to theme-coloured SVG. Each overlay becomes a step. |
 | `\cite`, `\citet`, `\parencite` + `\bibliography{refs}`, `\printbibliography`, `thebibliography` | Citations and a reference list, read straight from the `.bib` file |
 | `\footnote`, `\hyperlink`, `\SI{3}{\meter}`, `\href`, accents, `\textcolor{red!50!black}` | Rendered as in Beamer |
-| `\note{…}`, `\input{…}`, `\newcommand`, `\newenvironment`, `\definecolor` | Notes, includes, and macros in text, maths and scenes |
+| `\note{…}`, `\note<2>{…}`, `\input{…}`, `\newcommand`, `\newenvironment`, `\definecolor` | Speaker notes (per step too), includes, and macros in text, maths and scenes |
 | `aspectratio=43`, `handout`, `\usetheme{metropolis}`, `\setbeamercolor{alerted text}{…}` | Stage size, handouts, section pages, accent colours |
 | `\auroratheme{light}` (preamble) | Light palette for bright rooms. The default is the dark manim look. |
 

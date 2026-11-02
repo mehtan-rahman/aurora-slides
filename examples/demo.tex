@@ -2,6 +2,7 @@
 \usepackage{amsmath}
 \usepackage{aurora}          % PDF fallback for scene environments (see DESIGN.md §5)
 
+\auroraduration{10} % talk length: the speaker view (press s) counts down
 \title{Learning the Committor from the Hierarchy}
 \subtitle{An Aurora demo deck: Beamer in, manim-style HTML out}
 \author{Your Name}
@@ -159,6 +160,8 @@
   \FadeOut[id=lbl, with]
   \Text[at={2.1,1.8}, anchor=left, color=muted, size=26]{acetic acid + chloride}
 \end{scene}
+\note{Start with the nucleophile: hydroxide's lone pair attacks the carbonyl carbon.}
+\note<3>{The tetrahedral intermediate: point out the wedge (incoming OH) and the hash (Cl, about to leave).}
 \end{frame}
 
 \begin{frame}{S\textsubscript{N}2: inversion of configuration}

@@ -38,7 +38,7 @@ aurora reference                    # every scene command, key, and default
 | `\cite{k}` + `\bibliography{refs}` / `\printbibliography` | Citations and references from the `.bib` file |
 | `\footnote`, `\hyperlink{label}{…}`, `\SI{9.81}{\meter\per\second\squared}` | Rendered as in Beamer |
 | `\input{sections/x}` | Spliced in; warnings show `file:line` |
-| `\note{…}` | Speaker notes (press `s` in the browser) |
+| `\note{…}`, `\note<2>{…}` | Speaker notes (press `s` in the browser), optionally for one step; `\auroraduration{20}` sets the talk length for the countdown |
 | `\auroratheme{light}` in the preamble | Light palette (the default is dark) |
 | `\begin{scene}…\end{scene}` | Animated diagram (see below) |
 

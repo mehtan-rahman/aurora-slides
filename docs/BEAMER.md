@@ -26,6 +26,8 @@ frame (the test suite checks this against Beamer's own `.nav` output).
 | `\appendix` with `appendixnumberbeamer` | Backup frames are not counted in the total |
 | `\againframe<2->{label}` | Repeats a labelled frame, optionally from a step |
 | `\note{…}`, `\note[item]{…}`, `\note` after a frame | Speaker notes (press `s`) |
+| `\note<2>{…}`, `\note<3->{…}` | Shown in the speaker view on those steps only. As in Beamer, the overlay counts toward the frame's steps. |
+| pdfpc: `\pdfpcnote{…}`, `\pdfpcsetup{duration=20}` | A note, and the talk length for the speaker view's countdown (also `\auroraduration{20}`) |
 | `\mode<article>{…}`, `\mode<presentation>{…}` | Article-only material is dropped |
 | `comment` environment, `\iffalse … \fi` | Dropped |
 
@@ -166,11 +168,11 @@ HTML/XML, JSON/YAML and diff. `%` inside any verbatim environment is safe.
 ## In the browser
 
 Every frame lives in one offline HTML file. `→`/space/click advances, and `←` goes back.
-`o` opens the overview, `s` the speaker view (notes, timer, clock, next step), `b`/`w`
+`o` opens the overview, `s` the speaker view (the current slide, a live preview of the next step, this step's notes, a clock and a talk timer), `b`/`w`
 blanks the screen black or white, `l` turns on a laser pointer (mirrored to the
 speaker window), `12⏎` jumps to slide 12, and `f` goes fullscreen. **Ctrl/⌘-P** prints
 one page per frame. `aurora pdf deck.tex` does the same from the command line, and
-`--all-steps` gives one page per overlay, like Beamer's PDF.
+`--all-steps` gives one page per overlay, like Beamer's PDF. `--notes` adds a notes page after each slide that has notes.
 
 ## Known differences
 

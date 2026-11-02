@@ -52,6 +52,8 @@ export interface DeckMeta {
   progress: boolean;
   totalFrames: number;
   handout: boolean;
+  /** Talk length in minutes for the speaker view's countdown (\\auroraduration, pdfpc's duration=). */
+  duration?: number;
 }
 
 export interface Deck {
@@ -333,6 +335,11 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
     titlegraphic: tg ? blocks(tg.long, metaCtx, { notes: [], scenes: [], titlepage: false }).replace(/ data-(from|until)="\d+"/g, '') : '',
     logo: lg ? inline(lg.long, metaCtx).replace(/ data-(from|until)="\d+"/g, '') : '',
     width, vars, serif, footline, progress, totalFrames: 0, handout,
+    duration: (() => {
+      const a = preambleArg(pre, 'auroraduration')?.long ?? /duration\s*=\s*([\d.]+)/.exec(preambleArg(pre, 'pdfpcsetup')?.long ?? '')?.[1];
+      const n = a ? parseFloat(a) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    })(),
   };
   metaRef = meta;
 
@@ -453,6 +460,7 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
 
     const { map, count } = steps.compaction();
     html = compactHtml(html, map, count);
+    fs.notes = fs.notes.map((n) => compactHtml(n, map, count));
     const offsetScenes = deck.scenes.length;
     html = html.replace(/data-scene="(\d+)"/g, (_, i) => `data-scene="${offsetScenes + Number(i)}"`);
     for (const sc of fs.scenes) {
@@ -513,12 +521,16 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
         }
         if (name === 'appendix') { inAppendix = true; continue; }
         if (name === 'titlepage' || name === 'maketitle') { deck.slides.push(titleSlide()); continue; }
-        if (name === 'note') {
-          r.readStar(); r.readOverlay();
+        if (name === 'note' || name === 'pdfpcnote') {
+          r.readStar(); const ov = r.readOverlay();
           const o = r.readOptional();
           const b = r.readGroup();
           const last = deck.slides[deck.slides.length - 1];
-          if (last) last.notes.push(o && /item/.test(o) ? `<ul class="note-items"><li>${inline(b, metaCtx)}</li></ul>` : blocks(b, metaCtx, { notes: [], scenes: [], titlepage: false }).replace(/ data-(from|until|on)="[^"]*"/g, ''));
+          const html = o && /item/.test(o) ? `<ul class="note-items"><li>${inline(b, metaCtx)}</li></ul>` : blocks(b, metaCtx, { notes: [], scenes: [], titlepage: false }).replace(/ data-(from|until|on)="[^"]*"/g, '');
+          // \note<2-3>{…} after a frame: Beamer slide numbers → this frame's 0-based steps.
+          const sp = ov ? /^(\d+)(-?)(\d*)$/.exec(ov.trim()) : null;
+          const at = sp ? ` data-from="${+sp[1] - 1}"${sp[2] ? (sp[3] ? ` data-until="${+sp[3]}"` : '') : ` data-until="${+sp[1]}"`}` : '';
+          if (last) last.notes.push(`<div class="note-part"${at}>${html}</div>`);
           continue;
         }
         if (name === 'againframe') {

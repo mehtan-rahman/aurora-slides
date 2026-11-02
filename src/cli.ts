@@ -21,7 +21,7 @@ usage:
                                                    compile to one self-contained HTML file
   aurora serve <deck.tex> [--port 3000]            live-reloading preview server
   aurora check <deck.tex> [--json] [--strict]      parse and report problems without writing
-  aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout]
+  aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout] [--notes]
                                                    print to PDF, one page per frame (needs playwright)
   aurora snapshot <deck.tex> [--out dir] [--slides 1,3-5] [--all-steps] [--json]
                                                    render PNGs of slides (needs playwright)
@@ -202,7 +202,7 @@ async function main() {
     page.on('pageerror', (e: Error) => errors.push(String(e)));
     await page.goto(pathToFileURL(tmp).href);
     await page.waitForFunction(() => (window as any).aurora);
-    const pages = await page.evaluate((all: boolean) => (window as any).aurora.printLayout(all ? 'all' : 'last'), has('--all-steps'));
+    const pages = await page.evaluate(([all, notes]: boolean[]) => (window as any).aurora.printLayout(all ? 'all' : 'last', { notes }), [has('--all-steps'), has('--notes')]);
     await page.emulateMedia({ media: 'print' });
     await page.pdf({ path: out, width: `${w}px`, height: `${h}px`, printBackground: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
     await browser.close();

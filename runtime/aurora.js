@@ -1552,6 +1552,7 @@
 
   // ---- media: autoplay videos and image sequences on entering a slide.
   function mediaEnter(slide) {
+    if (isPreview) return;
     for (const sl of slides) if (sl !== slide) {
       sl.querySelectorAll('video, audio').forEach((v) => v.pause());
       sl.querySelectorAll('.anim').forEach(stopAnim);
@@ -1619,7 +1620,10 @@
   const lastStep = (s) => +slides[s].dataset.steps - 1;
 
   // Presenter and audience windows stay in sync over a BroadcastChannel.
-  const channel = 'BroadcastChannel' in window ? new BroadcastChannel(`aurora:${document.title}`) : null;
+  // ?preview: the speaker view's "next step" pane. Driven only by its parent window (no input, no sync).
+  const isPreview = new URLSearchParams(location.search).has('preview');
+  if (isPreview) document.documentElement.classList.add('preview');
+  const channel = !isPreview && 'BroadcastChannel' in window ? new BroadcastChannel(`aurora:${document.title}`) : null;
   const broadcast = (type, extra = {}) => channel?.postMessage({ type, s: state.s, k: state.k, ...extra });
 
   let stepStart = 0;
@@ -1693,32 +1697,101 @@
   }
 
   // ---------------------------------------------------------------- presenter view (?presenter)
-  const presenter = new URLSearchParams(location.search).has('presenter');
-  let ui = null, t0 = null;
+  // Current slide on the left; on the right a clock and talk timer, a live preview of
+  // what the next click shows, and the notes for this step.
+  const params = new URLSearchParams(location.search);
+  const presenter = params.has('presenter');
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
+  const duration = (parseFloat(params.get('duration') ?? '') || DATA.duration || 0) * 60; // seconds, 0 = count up
+  let ui = null, preview = null, booted = false;
+  let t0 = null, pausedAt = null, pausedFor = 0;
+  let notesScale = parseFloat(store.get('aurora:notes-scale') ?? '') || 1;
+  const elapsed = () => (t0 === null ? 0 : ((pausedAt ?? Date.now()) - t0 - pausedFor) / 1000);
+  const clock = (sec) => {
+    sec = Math.floor(sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = String(sec % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${String(m).padStart(2, '0')}:${x}`;
+  };
+  function timerTick() {
+    if (!ui) return;
+    ui.querySelector('.pv-clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const el = elapsed(), timer = ui.querySelector('.pv-timer'), sub = ui.querySelector('.pv-sub');
+    const state0 = t0 === null ? 'starts on your first click' : pausedAt !== null ? 'paused (t to resume)' : '';
+    if (duration) {
+      const left = duration - el;
+      timer.textContent = left >= 0 ? clock(left) : `+${clock(-left)}`;
+      timer.classList.toggle('warn', left >= 0 && left <= Math.max(120, duration * 0.1));
+      timer.classList.toggle('over', left < 0);
+      sub.textContent = state0 || `${clock(el)} of ${clock(duration)}`;
+      // Pace: time used vs. slides shown.
+      ui.querySelector('.pv-pace-t').style.width = `${Math.min(100, (el / duration) * 100)}%`;
+      ui.querySelector('.pv-pace-s').style.width = `${(state.s / Math.max(1, slides.length - 1)) * 100}%`;
+    } else {
+      timer.textContent = clock(el);
+      sub.textContent = state0;
+    }
+  }
+  function togglePause() {
+    if (t0 === null) return;
+    if (pausedAt === null) pausedAt = Date.now();
+    else { pausedFor += Date.now() - pausedAt; pausedAt = null; }
+    timerTick();
+  }
+  function setNotesScale(f) {
+    notesScale = Math.min(3, Math.max(0.5, f));
+    ui?.style.setProperty('--pv-notes', String(notesScale));
+    store.set('aurora:notes-scale', String(notesScale));
+  }
   if (presenter) {
     document.body.classList.add('presenter');
     ui = document.createElement('aside');
     ui.className = 'pv';
-    ui.innerHTML = `<div class="pv-top"><span class="pv-pos"></span><span class="pv-clock"></span><span class="pv-timer" title="click to reset">00:00</span></div>
-      <div class="pv-next"></div><div class="pv-notes"></div>
-      <div class="pv-help">→ / space next · ← back · b black screen · click timer to reset</div>`;
+    ui.innerHTML = `<div class="pv-top"><span class="pv-pos"></span><span class="pv-clock"></span></div>
+      <div class="pv-time"><span class="pv-timer" title="click to reset">00:00</span><span class="pv-sub"></span></div>
+      ${duration ? '<div class="pv-pace" title="time used (top) vs slides shown (bottom)"><i class="pv-pace-t"></i><i class="pv-pace-s"></i></div>' : ''}
+      <div class="pv-next"><div class="pv-next-label"></div>
+        <div class="pv-frame"><iframe class="pv-preview" title="next step" tabindex="-1" src="${location.pathname}?preview"></iframe><div class="pv-endcard">End of the deck</div></div></div>
+      <div class="pv-notes"></div>
+      <div class="pv-help">→ next · ← back · t pause timer · click timer to reset · + / − note size · b black screen</div>`;
     document.body.appendChild(ui);
-    ui.querySelector('.pv-timer').addEventListener('click', (e) => { e.stopPropagation(); t0 = Date.now(); });
-    setInterval(() => {
-      ui.querySelector('.pv-clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      if (t0 === null) return;
-      const sec = Math.floor((Date.now() - t0) / 1000);
-      ui.querySelector('.pv-timer').textContent = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
-    }, 500);
+    ui.style.setProperty('--pv-aspect', `${W} / ${H}`);
+    preview = ui.querySelector('.pv-preview');
+    preview.addEventListener('load', () => sendPreview());
+    ui.querySelector('.pv-timer').addEventListener('click', (e) => { e.stopPropagation(); t0 = Date.now(); pausedAt = null; pausedFor = 0; timerTick(); });
+    setNotesScale(notesScale);
+    setInterval(timerTick, 500);
+    timerTick();
+  }
+  /** Where the next click lands: the next step, or the first step of the next slide. */
+  const nextPos = () => (state.k < lastStep(state.s) ? { s: state.s, k: state.k + 1 } : state.s < slides.length - 1 ? { s: state.s + 1, k: 0 } : null);
+  function sendPreview() {
+    const n = nextPos();
+    preview?.contentWindow?.postMessage(n ? { type: 'aurora-preview', s: n.s, k: n.k } : { type: 'aurora-preview', end: true }, '*');
+    ui?.querySelector('.pv-next').classList.toggle('end', !n);
+  }
+  /** Note parts for slide s at step k (\note<2>{…} only on its steps). */
+  function notesAt(s, k) {
+    const parts = [...(slides[s].querySelector('.notes')?.children ?? [])];
+    const timed = (p) => p.hasAttribute('data-from') || p.hasAttribute('data-on');
+    return parts.filter((p) => !timed(p) || visibleAt(p, k)).map((p) => {
+      const fresh = timed(p) && (k === 0 || !visibleAt(p, k - 1));
+      return `<div class="pv-note${fresh ? ' fresh' : ''}">${p.innerHTML}</div>`;
+    }).join('');
   }
   function updatePresenter() {
     if (!ui) return;
-    t0 ??= Date.now();
+    // The first call is the initial load; the timer starts on the first real move.
+    if (booted && t0 === null) t0 = Date.now();
+    booted = true;
     const sl = slides[state.s];
     ui.querySelector('.pv-pos').textContent = `slide ${state.s + 1} / ${slides.length} · step ${state.k + 1} / ${lastStep(state.s) + 1}`;
-    const nextSlide = state.k < lastStep(state.s) ? 'next: step ' + (state.k + 2) : slides[state.s + 1] ? 'next: ' + (slides[state.s + 1].querySelector('.ftitle, .t-title, .secpage h1')?.textContent ?? `slide ${state.s + 2}`) : 'end of deck';
-    ui.querySelector('.pv-next').textContent = nextSlide;
-    ui.querySelector('.pv-notes').innerHTML = sl.querySelector('.notes')?.innerHTML ?? '<span class="pv-empty">No notes for this slide. Add \\note{…} in the frame.</span>';
+    const n = nextPos();
+    const title = (i) => slides[i].querySelector('.ftitle, .t-title, .secpage h1')?.textContent?.trim() || `slide ${i + 1}`;
+    ui.querySelector('.pv-next-label').textContent = !n ? 'Next: end of the deck' : n.s === state.s ? `Next: step ${n.k + 1} of ${lastStep(n.s) + 1}` : `Next slide: ${title(n.s)}`;
+    sendPreview();
+    const notes = notesAt(state.s, state.k);
+    ui.querySelector('.pv-notes').innerHTML = notes || `<span class="pv-empty">${sl.querySelector('.notes') ? 'No notes for this step.' : 'No notes for this slide. Add \\note{…} in the frame.'}</span>`;
+    timerTick();
   }
 
   // ---------------------------------------------------------------- overview grid (o)
@@ -1749,7 +1822,25 @@
 
   // ---------------------------------------------------------------- printing (Ctrl-P, `aurora pdf`)
   /** Lays out every slide (final step, or every step with 'all') as print pages. Returns the page count. */
-  function printLayout(mode = 'last') {
+  /** A printed notes page for slide i: its \note parts, per-step ones labelled with their steps. */
+  function notesPage(sl, i) {
+    const parts = [...(sl.querySelector('.notes')?.children ?? [])];
+    if (!parts.length) return null;
+    const steps = (p) => {
+      if (!p.hasAttribute('data-from')) return '';
+      const a = +p.dataset.from + 1, until = p.dataset.until !== undefined ? +p.dataset.until : null;
+      const label = until === null ? `step ${a} on` : until - a === 0 ? `step ${a}` : `steps ${a}–${until}`;
+      return `<span class="np-step">${label}</span>`;
+    };
+    const title = sl.querySelector('.ftitle, .t-title, .secpage h1')?.textContent?.trim();
+    const page = document.createElement('section');
+    page.className = 'slide print-page notes-page';
+    page.innerHTML = `<div class="np-head">Notes · slide ${i + 1}${title ? ` · ${title}` : ''}</div>` +
+      parts.map((p) => `<div class="np-part">${steps(p)}${p.innerHTML}</div>`).join('');
+    return page;
+  }
+
+  function printLayout(mode = 'last', opts = {}) {
     document.getElementById('print')?.remove();
     const box = document.createElement('div');
     box.id = 'print';
@@ -1771,6 +1862,7 @@
         if (logo && !sl.classList.contains('plain')) page.appendChild(logo.cloneNode(true));
         box.appendChild(page);
       }
+      if (opts.notes) { const np = notesPage(sl, i); if (np) box.appendChild(np); }
       sl.classList.remove('active');
     });
     document.body.appendChild(box);
@@ -1835,10 +1927,13 @@
   let digits = '';
   addEventListener('resize', fit);
   addEventListener('keydown', (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isPreview || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target.closest?.('input, textarea, [contenteditable]')) return;
     const k = e.key;
     if (overview && k !== 'o' && k !== 'Escape') return;
+    if (presenter && k === 't') { togglePause(); return; }
+    if (presenter && (k === '+' || k === '=')) { setNotesScale(notesScale * 1.15); return; }
+    if (presenter && (k === '-' || k === '_')) { setNotesScale(notesScale / 1.15); return; }
     if (/^[0-9]$/.test(k)) { digits += k; return; }
     if (k === 'Enter' && digits) { e.preventDefault(); jump(parseInt(digits, 10) - 1, 0, true); digits = ''; return; }
     digits = '';
@@ -1856,6 +1951,7 @@
     else if (k === 'Escape') { help.classList.remove('on'); if (curtain.dataset.mode) setScreen(curtain.dataset.mode); }
   });
   addEventListener('click', (e) => {
+    if (isPreview) return;
     const link = e.target.closest('a.jump');
     if (link) { e.preventDefault(); goto(link.dataset.goto); return; }
     const anim = e.target.closest('.anim');
@@ -1873,15 +1969,22 @@
   let touchX = null;
   addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
   addEventListener('touchend', (e) => {
-    if (touchX === null) return;
+    if (isPreview || touchX === null) return;
     const dx = e.changedTouches[0].clientX - touchX;
     touchX = null;
     if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); e.preventDefault(); }
   });
 
+  if (isPreview) addEventListener('message', (e) => {
+    const d = e.data;
+    if (d?.type !== 'aurora-preview') return;
+    document.documentElement.classList.toggle('preview-end', !!d.end);
+    if (!d.end) jump(d.s, d.k);
+  });
+
   fit();
   const start = readHash();
-  start ? jump(start[0], start[1], !presenter) : jump(0, 0, true);
+  start ? jump(start[0], start[1], !presenter && !isPreview) : jump(0, 0, !presenter && !isPreview);
   // Public API (used by `aurora snapshot` / `aurora pdf` and handy for automation).
   window.aurora = {
     next: () => next(), prev: () => prev(), jump: (s, k) => jump(s, k), goto, state,

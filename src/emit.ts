@@ -60,7 +60,7 @@ function slideHtml(sl: Slide, d: Deck): string {
     `data-sec="${sl.sectionIdx}"`,
     sl.transition ? `data-trans="${sl.transition}"` : '',
   ].filter(Boolean).join(' ');
-  const notes = sl.notes.length ? `<aside class="notes">${sl.notes.join('<br>')}</aside>` : '';
+  const notes = sl.notes.length ? `<aside class="notes">${sl.notes.join('')}</aside>` : '';
   if (sl.kind === 'title') return `<section class="slide title-slide" ${attrs}>${titleSlide(d)}${notes}</section>`;
   if (sl.kind === 'section') return `<section class="slide section-slide" ${attrs}>${sl.html}${notes}</section>`;
   const cls = ['slide', sl.plain ? 'plain' : '', sl.standout ? 'standout' : '', sl.align ? `v-${sl.align}` : ''].filter(Boolean).join(' ');
@@ -76,7 +76,7 @@ export function emitHtml(deck: Deck, opts: { live?: boolean } = {}): string {
   const rootStyle = Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';');
 
   const needsGlyphs = deck.scenes.some((s) => s.objects.some((o) => o.kind === 'DecimalNumber'));
-  const data = { scenes: deck.scenes, glyphs: needsGlyphs ? glyphTable() : undefined, width: m.width, footline: m.footline, total: m.totalFrames };
+  const data = { scenes: deck.scenes, glyphs: needsGlyphs ? glyphTable() : undefined, width: m.width, footline: m.footline, total: m.totalFrames, duration: m.duration };
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
   const title = deck.meta.title.replace(/<[^>]+>/g, '') || 'Aurora deck';
   const live = opts.live

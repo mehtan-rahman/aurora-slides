@@ -559,11 +559,13 @@ export function blocks(src: string, ctx: Ctx, fs: FrameState): string {
       continue;
     }
     if (name === 'caption' || name === 'subcaption') { flushPara(); r.readStar(); r.readOptional(); out += `<div class="caption"${stepAttrs(ctx.steps.here())}>${inline(r.readGroup(), ctx)}</div>`; continue; }
-    if (name === 'note') {
-      r.readStar(); r.readOverlay();
+    if (name === 'note' || name === 'pdfpcnote') {
+      r.readStar();
+      const ov = r.readOverlay();
       const opt = r.readOptional();
       const body = r.readGroup();
-      fs.notes.push(noteHtml(body, opt, ctx));
+      // \note<2>{…}: shown in the speaker view on that step only (and, as in Beamer, it counts as a step).
+      fs.notes.push(`<div class="note-part"${ov ? stepAttrs(ctx.steps.overlay(ov)) : ''}>${noteHtml(body, opt, ctx)}</div>`);
       continue;
     }
     if (name === 'includegraphics') {

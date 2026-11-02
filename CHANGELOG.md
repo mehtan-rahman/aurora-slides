@@ -73,6 +73,14 @@ slide count for every frame. The full list is in [docs/BEAMER.md](docs/BEAMER.md
 - The logo sits above an info-line footline.
 - Fix: with `\setbeamercovered{transparent}`, slides no longer flash their content faintly as they enter.
 
+### Speaker view
+
+- Live preview of what the next click shows, in place of the "next: step 2" text.
+- Per-step notes: `\note<2>{…}` appears only on step 2 (and counts as a step, as in Beamer); a newly appeared note is marked.
+- Talk timer: starts on the first click, `t` pauses it, and click it to reset. `\auroraduration{20}` (or pdfpc's `\pdfpcsetup{duration=20}`) turns it into a countdown with orange and red warnings and pace bars.
+- `+` / `−` resize the notes (remembered). pdfpc's `\pdfpcnote{…}` works as a note.
+- `aurora pdf --notes` adds a notes page after each slide that has notes.
+
 ### Chemistry
 
 - Curly arrows:
