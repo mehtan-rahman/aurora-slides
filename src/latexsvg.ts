@@ -4,7 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, isAbsolute } from 'node:path';
+import { findFile, rasterize, IMAGE_MIME } from './media.ts';
 
 let available: boolean | null = null;
 const cacheDir = join(tmpdir(), 'aurora-latex-cache');
@@ -55,19 +56,58 @@ const LIGHT = DARK
   .replace(/\{fg\}\{HTML\}\{ECECEC\}/, '{fg}{HTML}{23262C}').replace(/\{black\}\{HTML\}\{ECECEC\}/, '{black}{HTML}{23262C}')
   .replace(/\{white\}\{HTML\}\{16181C\}/, '{white}{HTML}{FBFAF7}');
 
-export function renderLatex(body: string, preamble: string, scale = 3, theme: 'dark' | 'light' = 'dark'): string {
+/** Where a fragment's \includegraphics should look (the deck's folder and \graphicspath). */
+export interface GraphicsLookup { baseDir: string; graphicsPath?: string[] }
+
+/**
+ * Images inside a fragment (a photo in a TikZ node, …): point them at absolute paths,
+ * swap PDF/EPS for Aurora's own rasterization (dvisvgm can't embed them without
+ * libgs), and return the files used so the cache key changes when an image does.
+ */
+function prepareGraphics(body: string, look?: GraphicsLookup): { body: string; files: string[] } {
+  const files: string[] = [];
+  if (!look) return { body, files };
+  const out = body.replace(/\\includegraphics(<[^>]*>)?(\[[^\]]*\])?\{([^}]*)\}/g, (m, ov = '', opt = '', name) => {
+    const page = /page\s*=\s*(\d+)/.exec(opt)?.[1];
+    const f = findFile(name, look.baseDir, look.graphicsPath ?? []);
+    if (!f) return m;
+    let path = f;
+    let o = opt;
+    if (/\.(pdf|e?ps)$/i.test(f)) {
+      const png = rasterize(f, page ? +page : 1);
+      if (!png) return m;
+      path = png;
+      // The raster is 220 dpi; keep the figure's natural size when no size is given.
+      if (!/width|height|scale/.test(o)) o = o ? o.replace(/\]$/, ',scale=0.3273]') : '[scale=0.3273]';
+      o = o.replace(/,?\s*page\s*=\s*\d+/, '').replace('[,', '[');
+    }
+    files.push(path);
+    return `\\includegraphics${ov}${o}{${path.replace(/\\/g, '/')}}`;
+  });
+  return { body: out, files };
+}
+
+export function renderLatex(body: string, preamble: string, scale = 3, theme: 'dark' | 'light' = 'dark', look?: GraphicsLookup): string {
   const THEME = theme === 'light' ? LIGHT : DARK;
+  const g = prepareGraphics(body, look);
+  body = g.body;
+  const gpath = look ? [look.baseDir, ...(look.graphicsPath ?? []).map((d) => resolve(look.baseDir, d))].map((d) => `{${d.replace(/\\/g, '/').replace(/\/?$/, '/')}}`).join('') : '';
   // pgf's dvisvgm driver writes SVG specials directly (no Ghostscript needed).
   const doc = `\\def\\pgfsysdriver{pgfsys-dvisvgm.def}
+\\PassOptionsToPackage{dvisvgm}{graphicx}
 \\documentclass[border=2pt]{standalone}
 \\usepackage{xcolor}
 ${THEME}
 ${preamble}
+\\usepackage{graphicx}${gpath ? `\\graphicspath{${gpath}}` : ''}
+\\AtBeginDocument{\\DeclareGraphicsExtensions{.png,.jpg,.jpeg,.gif,.svg,.eps,.pdf}}
 \\begin{document}\\color{fg}%
 ${body}
 \\end{document}
 `;
-  const hash = createHash('sha1').update(doc).digest('hex').slice(0, 16);
+  const h = createHash('sha1').update(doc);
+  for (const f of g.files) { try { h.update(readFileSync(f)); } catch { /* vanished */ } }
+  const hash = h.digest('hex').slice(0, 16);
   mkdirSync(cacheDir, { recursive: true });
   const svgPath = join(cacheDir, `${hash}.svg`);
   if (!existsSync(svgPath)) {
@@ -83,6 +123,12 @@ ${body}
     execFileSync('dvisvgm', ['--no-fonts', `${hash}.dvi`, '-o', `${hash}.svg`], { cwd: cacheDir, stdio: 'pipe', timeout: 60000 });
   }
   let svg = readFileSync(svgPath, 'utf8').replace(/<\?xml[^>]*>\s*/, '').replace(/<!--.*?-->\s*/gs, '');
+  // dvisvgm links bitmaps by file name; embed them so the deck stays one file.
+  svg = svg.replace(/xlink:href='([^'#][^']*)'/g, (m, name) => {
+    const f = isAbsolute(name) && existsSync(name) ? name : look ? findFile(name, look.baseDir, look.graphicsPath ?? []) : null;
+    const mime = f && IMAGE_MIME[(/\.[^.]+$/.exec(f)?.[0] ?? '').toLowerCase()];
+    return f && mime ? `xlink:href='data:${mime};base64,${readFileSync(f).toString('base64')}'` : m;
+  });
   // Scale pt → px and namespace ids so several figures can share one page.
   svg = svg.replace(/width='([\d.]+)pt' height='([\d.]+)pt'/, (_, w, h) => `width='${(+w * scale).toFixed(1)}' height='${(+h * scale).toFixed(1)}'`);
   const p = `lx${uid++}-`;

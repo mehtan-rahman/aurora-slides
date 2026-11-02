@@ -231,7 +231,7 @@ p.hf { display: flex; flex-wrap: wrap; align-items: baseline; }
 .rulefill { border-bottom: 1px solid var(--dim); }
 p.imgs { display: flex; justify-content: center; align-items: center; gap: 24px; flex-wrap: wrap; }
 .centered { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.centered > .tblwrap, .centered > .cols { align-self: stretch; }
+.centered > .tblwrap, .centered > .cols, .centered > .figwrap, .centered > p { align-self: stretch; }
 .flushleft { text-align: left; }
 .group { display: contents; }
 
@@ -265,11 +265,16 @@ blockquote.verse { font-style: normal; }
 .figure:has(> .subfig) { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 24px; }
 .figure:has(> .subfig) > .caption { flex-basis: 100%; }
 .subfig { display: flex; flex-direction: column; align-items: center; }
+/* Image wrappers span their container, so width=0.5\textwidth / \linewidth mean what they say. */
+.figure > .centered, .figure > .figwrap, .subfig > .centered, .subfig > .figwrap { align-self: stretch; }
 .fitwidth { display: flex; flex-direction: column; align-items: center; }
 .fitwidth .tbl, .fitwidth .fig { width: 100%; }
 .scalebox { display: flex; flex-direction: column; align-items: center; }
 .fig.inl { display: inline-block; vertical-align: middle; max-height: none; }
 .fig.scaled { zoom: var(--scale); }
+/* trim/clip: a crop window around the image (see imageHtml). */
+.fig.crop { position: relative; display: inline-block; vertical-align: middle; flex: none; }
+.figwrap > .fig { flex: none; }
 .latex-inline svg { vertical-align: middle; overflow: visible; }
 
 /* Tables */
@@ -315,8 +320,14 @@ footer.infolines { position: absolute; left: 0; right: 0; bottom: 0; height: 40p
 footer.infolines span { flex: 1; display: flex; align-items: center; justify-content: center; }
 footer.infolines span:first-child { justify-content: flex-start; padding-left: 44px; }
 footer.infolines span:last-child { justify-content: flex-end; padding-right: 150px; }
+/* \usebackgroundtemplate: behind everything on the slide, filling the page. */
+.slide { isolation: isolate; }
+.slide-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.slide-bg .fig { max-width: none; max-height: none; }
 .logo { position: absolute; right: 120px; bottom: 22px; height: 52px; display: flex; align-items: flex-end; }
-.logo img { max-height: 52px; width: auto; }
+.logo img { max-height: 120px; width: auto; }
+/* With an info-line footline, the logo sits just above it (as in Beamer). */
+#stage:has(.slide.active > footer.infolines) > .logo { bottom: 48px; right: 24px; }
 #stage:has(.slide.plain.active) > .logo, #stage:has(.title-slide.active) > .logo { display: none; }
 
 /* Code */

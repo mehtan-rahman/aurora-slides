@@ -60,6 +60,19 @@ slide count for every frame. The full list is in [docs/BEAMER.md](docs/BEAMER.md
   - `aurora pdf` (`--all-steps` for one page per overlay, like Beamer).
   - `snapshot --json` reports `shrunk` slides.
 
+**Fixes after review** (images checked against pdflatex output):
+
+- `width=0.6\textwidth` inside `\centering` and figures no longer renders tiny.
+- `angle=` is no longer undone by the fade-in animation, and quarter turns reserve their rotated space.
+- `trim`/`clip`/`viewport` crop.
+- Images without a size get their physical size from their dpi, as in pdflatex.
+- `\resizebox`/`\scalebox` around an image set its size.
+- `\ref` to figure and table labels works.
+- `\usebackgroundtemplate` works.
+- Images inside TikZ nodes compile and embed.
+- The logo sits above an info-line footline.
+- Fix: with `\setbeamercovered{transparent}`, slides no longer flash their content faintly as they enter.
+
 ### Chemistry
 
 - Curly arrows:

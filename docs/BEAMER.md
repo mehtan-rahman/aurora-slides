@@ -144,10 +144,14 @@ HTML/XML, JSON/YAML and diff. `%` inside any verbatim environment is safe.
 
 | Beamer | Aurora |
 |---|---|
-| `\includegraphics[width=, height=, scale=, angle=, page=, keepaspectratio]{…}` | PNG/JPG/SVG/GIF/WebP are embedded. PDF and EPS are rasterised with Ghostscript (`gs`; on macOS, `sips` is the fallback for PDFs). |
+| `\includegraphics[width=, height=, scale=, angle=, page=, keepaspectratio]{…}` | PNG/JPG/SVG/GIF/WebP are embedded. PDF and EPS are rasterised with Ghostscript (`gs`; on macOS, `sips` is the fallback for PDFs). Without a size, an image gets its physical size from its stored dpi (72 if none), as in pdflatex, and `scale=` multiplies that. A size given after `angle=` sizes the rotated box, as in graphicx. |
+| `trim=l b r t, clip`, `viewport=llx lly urx ury` | Cropped to that window (bp by default, or any TeX unit) |
+| `\resizebox{0.5\textwidth}{!}{\includegraphics{…}}`, `\scalebox{0.5}{…}` | Sets the image's size |
+| `\usebackgroundtemplate{…}`, `\setbeamertemplate{background}{…}` | Background behind the frame. Set in the preamble for every frame, or inside `{ … }` for the frames in that group. |
+| `\caption` + `\label` in `figure`/`table` (and `subfigure`) | `\ref` gives the figure or table number (`1`, `2b`) |
 | `\graphicspath{{figures/}}`, extension-less names | Resolved the way graphicx does |
 | Several images in one paragraph, with `\hfill` | Laid out in a row |
-| `tikzpicture`, `circuitikz`, `tikzcd`, `forest`, `pgfplots`' `axis`, `\tikz …;` (inline too), `\chemfig`, `algorithm`/`algorithmic`, `\begin{latex}…\end{latex}` | Compiled with your LaTeX (`latex` + `dvisvgm`) to SVG in the deck's colours |
+| `tikzpicture`, `circuitikz`, `tikzcd`, `forest`, `pgfplots`' `axis`, `\tikz …;` (inline too), `\chemfig`, `algorithm`/`algorithmic`, `\begin{latex}…\end{latex}` | Compiled with your LaTeX (`latex` + `dvisvgm`) to SVG in the deck's colours. `\includegraphics` inside them (a photo in a TikZ node) uses `\graphicspath` and is embedded. |
 | `\movie[autostart, loop]{poster}{file.mp4}`, `\includemedia`, `\video{file}` | Embedded `<video>`. Files over 40 MB are linked instead. |
 | `\animategraphics[autoplay, loop]{12}{frame-}{0}{59}` | Embedded image sequence. Click it to play or pause. |
 

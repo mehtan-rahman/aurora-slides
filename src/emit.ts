@@ -65,7 +65,8 @@ function slideHtml(sl: Slide, d: Deck): string {
   if (sl.kind === 'section') return `<section class="slide section-slide" ${attrs}>${sl.html}${notes}</section>`;
   const cls = ['slide', sl.plain ? 'plain' : '', sl.standout ? 'standout' : '', sl.align ? `v-${sl.align}` : ''].filter(Boolean).join(' ');
   const fn = sl.footnotes ? `<div class="footnotes">${sl.footnotes}</div>` : '';
-  return `<section class="${cls}" ${attrs}>${header(sl, d)}<div class="body">${sl.html}</div>${fn}${footline(sl, d)}${notes}</section>`;
+  const bg = sl.background ? `<div class="slide-bg">${sl.background}</div>` : '';
+  return `<section class="${cls}" ${attrs}>${bg}${header(sl, d)}<div class="body">${sl.html}</div>${fn}${footline(sl, d)}${notes}</section>`;
 }
 
 export function emitHtml(deck: Deck, opts: { live?: boolean } = {}): string {

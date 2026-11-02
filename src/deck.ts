@@ -33,6 +33,8 @@ export interface Slide {
   standout?: boolean;
   /** For section pages: 'section' | 'subsection' | 'part'. */
   pageKind?: string;
+  /** \usebackgroundtemplate content in effect for this frame (HTML). */
+  background?: string;
 }
 
 export interface Diagnostic { slide?: number; line?: number; file?: string; message: string }
@@ -464,14 +466,21 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
     deck.slides.push({
       kind: 'frame', section: section || undefined, subsection: subsection || undefined, sectionIdx, title: fs.title, subtitle: fs.subtitle,
       html, steps: count, notes: fs.notes, covered, plain: !!kv.plain || !!kv.standout, frameNo: kv.noframenumbering ? null : frameNo, label, align,
-      footnotes, transition: fs.transition, standout: !!kv.standout,
+      footnotes, transition: fs.transition, standout: !!kv.standout, background: background || undefined,
     });
     if (!inAppendix) mainFrames = frameNo;
   }
 
+  // \usebackgroundtemplate / \setbeamertemplate{background}: preamble-wide, or scoped to a { … } group.
+  const bgHtml = (src: string) => inline(src, metaCtx).replace(/ data-(from|until)="\d+"/g, '');
+  const bgPre = preambleArg(pre, 'usebackgroundtemplate');
+  let background = bgPre ? bgHtml(bgPre.long) : '';
+  const bgStack: string[] = [];
   function walk(text: string, base: number | null) {
     const r = new Reader(text);
     while (!r.done) {
+      if (r.peek() === '{') { bgStack.push(background); r.pos++; continue; }
+      if (r.peek() === '}') { if (bgStack.length) background = bgStack.pop()!; r.pos++; continue; }
       if (r.peek() !== '\\') { r.pos++; continue; }
       const at = r.pos;
       let name: string;
@@ -529,6 +538,14 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
           continue;
         }
         if (name === 'logo') { meta.logo = inline(r.readGroup(), metaCtx); continue; }
+        if (name === 'usebackgroundtemplate') { background = bgHtml(r.readGroup()); continue; }
+        if (name === 'setbeamertemplate') {
+          const save = r.pos;
+          const what = r.readGroup().trim();
+          if (what === 'background' || what === 'background canvas') { r.readOptional(); background = bgHtml(r.readGroup()); continue; }
+          r.pos = save;
+          continue;
+        }
         if (name === 'frame' || (name === 'begin' && peekEnv(r) === 'frame')) {
           let opts: string | null = null, title: string | null = null, subtitle: string | null = null, content: string;
           if (name === 'frame') {

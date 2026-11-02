@@ -36,6 +36,16 @@ const BLOCKY = /\n[ \t]*\n|\\begin\s*\{|\\item(?![A-Za-z])|\\includegraphics|\\\
 
 // ---------------------------------------------------------------- images & media
 
+/** Stage pixels per PostScript point: Beamer's 16:9 page is 160 mm wide on a 1920 px stage. */
+const PX_PER_BP = 1920 / (160 / 25.4 * 72);
+
+/** A TeX length in big points (bare numbers are bp, as in graphicx's trim/viewport). */
+function bpLength(s: string): number {
+  const m = /^(-?[\d.]+)\s*(bp|pt|cm|mm|in|px)?$/.exec(s.trim());
+  if (!m) return 0;
+  return +m[1] * { bp: 1, pt: 0.99626, cm: 28.3465, mm: 2.83465, in: 72, px: 0.75 }[(m[2] ?? 'bp') as 'bp'];
+}
+
 export function imageHtml(opts: string | null, path: string, ctx: Ctx, attrs: string, inlineImg = false): string {
   const kv = parseKeyVals(opts);
   const page = typeof kv.page === 'string' ? parseInt(kv.page, 10) || 1 : 1;
@@ -44,17 +54,47 @@ export function imageHtml(opts: string | null, path: string, ctx: Ctx, attrs: st
     ctx.warn(`image ${path.trim()}: ${g.error}`);
     return `<div class="img-missing"${attrs}>${esc(path)}</div>`;
   }
+  const keys = Object.keys(kv);
+  let w = typeof kv.width === 'string' ? cssLength(kv.width) : null;
+  let h = typeof kv.height === 'string' ? cssLength(kv.height, 'y') : typeof kv.totalheight === 'string' ? cssLength(kv.totalheight, 'y') : null;
+  if (w === 'auto') w = null;
+  if (h === 'auto') h = null;
+  const angle = typeof kv.angle === 'string' ? parseFloat(kv.angle) || 0 : 0;
+  const quarter = Math.abs(angle) % 180 === 90;
+  // graphicx applies keys in order: a size given after angle= sizes the rotated box.
+  const sizeAt = ['width', 'height', 'totalheight'].map((k) => keys.indexOf(k)).filter((i) => i >= 0);
+  if (quarter && sizeAt.length && keys.indexOf('angle') < Math.min(...sizeAt)) [w, h] = [h, w];
+  const nat = g.bp;
+  // trim=l b r t, or viewport=llx lly urx ury, in bp of the natural size.
+  let trim: number[] | null = null;
+  if (typeof kv.trim === 'string') trim = kv.trim.trim().split(/[\s,]+/).map(bpLength);
+  else if (typeof kv.viewport === 'string' && nat) {
+    const [x0, y0, x1, y1] = kv.viewport.trim().split(/[\s,]+/).map(bpLength);
+    trim = [x0, y0, nat[0] - x1, nat[1] - y1];
+  }
+  if (trim && (trim.length !== 4 || !nat)) trim = null;
+  const fw = trim && nat ? 1 - (trim[0] + trim[2]) / nat[0] : 1, fh = trim && nat ? 1 - (trim[1] + trim[3]) / nat[1] : 1;
+  const scale = typeof kv.scale === 'string' ? parseFloat(kv.scale) || 1 : 1;
+  // No size given: Beamer's natural size (pixels at the image's dpi), times scale.
+  if (!w && !h && nat) w = `${Math.round(nat[0] * fw * PX_PER_BP * scale)}px`;
   const style: string[] = [];
-  const w = typeof kv.width === 'string' ? cssLength(kv.width) : null;
-  const h = typeof kv.height === 'string' ? cssLength(kv.height, 'y') : typeof kv.totalheight === 'string' ? cssLength(kv.totalheight, 'y') : null;
-  if (w && w !== 'auto') style.push(`width:${w}`);
-  if (h && h !== 'auto') style.push(`height:${h}`);
-  if (w && h && kv.keepaspectratio) style.push('object-fit:contain');
-  if (typeof kv.scale === 'string') style.push(`--scale:${parseFloat(kv.scale) || 1}`);
-  if (typeof kv.angle === 'string') style.push(`transform:rotate(${-parseFloat(kv.angle)}deg)`);
-  if (typeof kv.trim === 'string' && kv.clip) style.push('object-fit:cover');
-  const cls = `fig${inlineImg ? ' inl' : ''}${typeof kv.scale === 'string' ? ' scaled' : ''}`;
-  return `<img class="${cls}"${attrs} style="${style.join(';')}" src="${g.uri}" alt="${esc(path.trim())}">`;
+  if (w) style.push(`width:${w}`);
+  if (h) style.push(`height:${h}`);
+  if (!w && !h && scale !== 1) style.push(`--scale:${scale}`);
+  if (angle) style.push(`rotate:${-angle}deg`);
+  const rot = quarter ? ' data-rot' : '';
+  const cls = `fig${inlineImg ? ' inl' : ''}${!w && !h && scale !== 1 ? ' scaled' : ''}`;
+  const alt = esc(path.trim());
+  if (trim && nat && fw > 0 && fh > 0) {
+    // Crop window: the wrapper has the trimmed aspect; the image is enlarged and shifted inside it.
+    if (!(w && h)) style.push(`aspect-ratio:${(nat[0] * fw).toFixed(2)}/${(nat[1] * fh).toFixed(2)}`);
+    if (kv.clip || kv.clip === '') style.push('overflow:hidden');
+    const inner = `position:absolute;max-width:none;max-height:none;width:${(100 / fw).toFixed(3)}%;height:${(100 / fh).toFixed(3)}%;` +
+      `left:${(-(trim[0] / nat[0]) / fw * 100).toFixed(3)}%;top:${(-(trim[3] / nat[1]) / fh * 100).toFixed(3)}%`;
+    return `<span class="${cls} crop"${attrs}${rot} style="${style.join(';')}"><img style="${inner}" src="${g.uri}" alt="${alt}"></span>`;
+  }
+  if (w && h && kv.keepaspectratio !== undefined) style.push('object-fit:contain');
+  return `<img class="${cls}"${attrs}${rot} style="${style.join(';')}" src="${g.uri}" alt="${alt}">`;
 }
 
 function mediaHtml(opts: string | null, file: string, ctx: Ctx, attrs: string): string {
@@ -108,7 +148,7 @@ export function latexFigure(src: string, ctx: Ctx, display = true): string {
     return display ? `<div class="img-missing"${stepAttrs(here)}>LaTeX figure</div>` : '<span class="img-missing">LaTeX</span>';
   }
   const render = (body: string) => {
-    try { return renderLatex(body, ctx.latexPreamble ?? '', 3, ctx.latexTheme); }
+    try { return renderLatex(body, ctx.latexPreamble ?? '', 3, ctx.latexTheme, { baseDir: ctx.baseDir, graphicsPath: ctx.graphicsPath }); }
     catch (e) { ctx.warn(`LaTeX fragment failed: ${(e as Error).message}`); return `<span class="err">LaTeX error: ${esc((e as Error).message)}</span>`; }
   };
   if (!display || !hasOverlays(src)) return `<${display ? 'div' : 'span'} class="${cls}"${display ? stepAttrs(here) : ''}>${render(src)}</${display ? 'div' : 'span'}>`;
@@ -578,12 +618,26 @@ export function blocks(src: string, ctx: Ctx, fs: FrameState): string {
     if (name === 'resizebox' || name === 'scalebox' || name === 'adjustbox') {
       // Block form when it wraps a table or figure.
       r.readStar();
-      let scale = 1, fitWidth = false;
-      if (name === 'resizebox') { const w = r.readGroup(); r.readGroup(); fitWidth = /width/.test(w); }
+      let scale = 1, fitWidth = false, rw = '!', rh = '!';
+      if (name === 'resizebox') { rw = r.readGroup().trim(); rh = r.readGroup().trim(); fitWidth = /width/.test(rw); }
       else if (name === 'scalebox') { scale = parseFloat(r.readGroup()) || 1; r.readOptional(); }
       else { r.readGroup(); fitWidth = true; }
       r.skipSpace();
       const body = r.peek() === '{' ? r.readBalanced('{', '}') : '';
+      // Around a single image, the box just sets the image's size.
+      const one = name !== 'adjustbox' && /^\s*\\includegraphics(<[^>]*>)?(?:\[([^\]]*)\])?\{([^}]*)\}\s*$/.exec(body);
+      if (one) {
+        const o = one[2] ? [one[2]] : [];
+        if (name === 'resizebox') { if (rw !== '!') o.push(`width=${rw}`); if (rh !== '!') o.push(`height=${rh}`); }
+        else o.push(`scale=${scale}`);
+        const img = `\\includegraphics${one[1] ?? ''}[${o.join(',')}]{${one[3]}}`;
+        if (!raw.trim() && aloneInPara(src, r.pos)) {
+          flushPara();
+          const range = one[1] ? ctx.steps.overlay(one[1].slice(1, -1)) : ctx.steps.here();
+          out += `<div class="figwrap">${imageHtml(o.join(','), one[3], ctx, stepAttrs(range))}</div>`;
+        } else raw += img;
+        continue;
+      }
       if (BLOCKY.test(body) && !raw.trim()) {
         flushPara();
         out += `<div class="${fitWidth ? 'fitwidth' : 'scalebox'}"${scale !== 1 ? ` style="zoom:${scale}"` : ''}>${blocks(body, ctx, fs)}</div>`;
@@ -814,7 +868,20 @@ function environment(env: string, r: Reader, ctx: Ctx, fs: FrameState, flushPara
       style = ` style="width:${w}${pos === 't' ? ';align-self:flex-start' : pos === 'b' ? ';align-self:flex-end' : ''}"`;
       if (env === 'minipage') cls = 'minipage';
     }
-    return `<div class="${cls}"${style}>${blocks(r.readEnvBody(env), ctx, fs)}</div>`;
+    const envBody = r.readEnvBody(env);
+    if (/^(figure|table)\*?$/.test(env) && /\\caption(?![A-Za-z])/.test(envBody) && ctx.eq) {
+      // Number captioned figures/tables so \ref works (subfigures get 1a, 1b, …).
+      const kind = env.startsWith('table') ? 'tab' : 'fig';
+      const n = (ctx.eq[kind] = (ctx.eq[kind] ?? 0) + 1);
+      let k = 0;
+      const rest = envBody.replace(/\\begin\{sub(figure|table)\}[\s\S]*?\\end\{sub\1\}/g, (m) => {
+        const letter = 'abcdefghijklmnop'[k++] ?? '';
+        for (const l of m.matchAll(/\\label\{([^}]*)\}/g)) ctx.eq!.labels.set(l[1].trim(), `${n}${letter}`);
+        return '';
+      });
+      for (const l of rest.matchAll(/\\label\{([^}]*)\}/g)) ctx.eq.labels.set(l[1].trim(), String(n));
+    }
+    return `<div class="${cls}"${style}>${blocks(envBody, ctx, fs)}</div>`;
   }
   if (env === 'multicols' || env === 'multicols*') {
     flushPara();

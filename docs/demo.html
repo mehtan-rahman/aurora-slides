@@ -238,7 +238,7 @@ p.hf { display: flex; flex-wrap: wrap; align-items: baseline; }
 .rulefill { border-bottom: 1px solid var(--dim); }
 p.imgs { display: flex; justify-content: center; align-items: center; gap: 24px; flex-wrap: wrap; }
 .centered { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.centered > .tblwrap, .centered > .cols { align-self: stretch; }
+.centered > .tblwrap, .centered > .cols, .centered > .figwrap, .centered > p { align-self: stretch; }
 .flushleft { text-align: left; }
 .group { display: contents; }
 
@@ -272,11 +272,16 @@ blockquote.verse { font-style: normal; }
 .figure:has(> .subfig) { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 24px; }
 .figure:has(> .subfig) > .caption { flex-basis: 100%; }
 .subfig { display: flex; flex-direction: column; align-items: center; }
+/* Image wrappers span their container, so width=0.5\textwidth / \linewidth mean what they say. */
+.figure > .centered, .figure > .figwrap, .subfig > .centered, .subfig > .figwrap { align-self: stretch; }
 .fitwidth { display: flex; flex-direction: column; align-items: center; }
 .fitwidth .tbl, .fitwidth .fig { width: 100%; }
 .scalebox { display: flex; flex-direction: column; align-items: center; }
 .fig.inl { display: inline-block; vertical-align: middle; max-height: none; }
 .fig.scaled { zoom: var(--scale); }
+/* trim/clip: a crop window around the image (see imageHtml). */
+.fig.crop { position: relative; display: inline-block; vertical-align: middle; flex: none; }
+.figwrap > .fig { flex: none; }
 .latex-inline svg { vertical-align: middle; overflow: visible; }
 
 /* Tables */
@@ -322,8 +327,14 @@ footer.infolines { position: absolute; left: 0; right: 0; bottom: 0; height: 40p
 footer.infolines span { flex: 1; display: flex; align-items: center; justify-content: center; }
 footer.infolines span:first-child { justify-content: flex-start; padding-left: 44px; }
 footer.infolines span:last-child { justify-content: flex-end; padding-right: 150px; }
+/* \usebackgroundtemplate: behind everything on the slide, filling the page. */
+.slide { isolation: isolate; }
+.slide-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.slide-bg .fig { max-width: none; max-height: none; }
 .logo { position: absolute; right: 120px; bottom: 22px; height: 52px; display: flex; align-items: flex-end; }
-.logo img { max-height: 52px; width: auto; }
+.logo img { max-height: 120px; width: auto; }
+/* With an info-line footline, the logo sits just above it (as in Beamer). */
+#stage:has(.slide.active > footer.infolines) > .logo { bottom: 48px; right: 24px; }
 #stage:has(.slide.plain.active) > .logo, #stage:has(.title-slide.active) > .logo { display: none; }
 
 /* Code */
@@ -462,8 +473,13 @@ body.lasering { cursor: none; }
   function fadeIn(el, { dur = 0.7, shift = 16 } = {}) {
     return {
       dur,
-      begin() { reveal(el); el.style.opacity = 0; },
-      tick(a) { el.style.opacity = a; if (shift) el.style.transform = `translateY(${(1 - a) * shift}px)`; },
+      // A covered (transparent) item brightens from its faint state in place instead of
+      // vanishing first.
+      begin() { this.from = el.classList.contains('covered-step') ? 0.22 : 0; reveal(el); el.style.opacity = this.from; },
+      tick(a) {
+        el.style.opacity = this.from + (1 - this.from) * a;
+        if (shift && !this.from) el.style.transform = `translateY(${(1 - a) * shift}px)`;
+      },
       end() { el.style.opacity = ''; el.style.transform = ''; },
     };
   }
@@ -1893,7 +1909,9 @@ body.lasering { cursor: none; }
       if (el.dataset.anim === 'write') el.querySelectorAll('path, rect').forEach((p) => p.removeAttribute('style'));
       const vis = visibleAt(el, k);
       el.classList.toggle('hidden-step', !vis);
-      el.classList.toggle('covered-step', covered && !vis && firstFrom(el) > k);
+      // Entering a slide (k = −1), items about to fade in on step 0 start hidden; only later
+      // ones show as covered, or \setbeamercovered{transparent} would flash them on every entry.
+      el.classList.toggle('covered-step', covered && !vis && firstFrom(el) > Math.max(k, 0));
     }
     setFx(slide, k);
   }
@@ -1937,7 +1955,7 @@ body.lasering { cursor: none; }
     slide._fit = z;
     body.style.zoom = z === 1 ? '' : String(z);
   }
-  for (const img of stage.querySelectorAll('img')) if (!img.complete) img.addEventListener('load', () => { const sl = img.closest('.slide'); if (sl) { sl._fit = undefined; if (sl.classList.contains('active')) { autofit(sl); snapVisibility(); } } }, { once: true });
+  for (const img of stage.querySelectorAll('img')) if (!img.complete) img.addEventListener('load', () => { const sl = img.closest('.slide'); if (sl) { sl._fit = undefined; if (sl.classList.contains('active')) { fitRotated(sl); autofit(sl); snapVisibility(); } } }, { once: true });
   const snapVisibility = () => setVisibility(slides[state.s], state.k);
 
   // ---- media: autoplay videos and image sequences on entering a slide.
@@ -1964,9 +1982,20 @@ body.lasering { cursor: none; }
   }
   function stopAnim(a) { clearInterval(a._timer); a._timer = 0; }
 
+  // A quarter-turned image (angle=90) keeps its unrotated layout box; pad it so the
+  // rotated picture gets the room it actually needs, as in LaTeX.
+  function fitRotated(slide) {
+    for (const el of slide.querySelectorAll('[data-rot]')) {
+      el.style.margin = '';
+      const w = el.offsetWidth, h = el.offsetHeight;
+      if (w && h) el.style.margin = `${(w - h) / 2}px ${(h - w) / 2}px`;
+    }
+  }
+
   function show(s) {
     slides.forEach((el, i) => el.classList.toggle('active', i === s));
     const sl = slides[s];
+    fitRotated(sl);
     autofit(sl);
     if (pagenum) pagenum.textContent = sl.dataset.frame && DATA.footline !== 'none' ? `${sl.dataset.frame} / ${DATA.total || slides.length}` : '';
     const bar = sl.querySelector('.progress');

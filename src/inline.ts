@@ -32,7 +32,7 @@ export interface Ctx {
   /** Inline LaTeX fragment such as \tikz (set by the deck). */
   fragment?: (src: string) => string;
   /** Equation counter and label registry shared across the deck. */
-  eq?: { n: number; labels: Map<string, string> };
+  eq?: { n: number; labels: Map<string, string>; fig?: number; tab?: number };
   /** Highlighter for inline code (set by the deck). */
   code?: (src: string, lang: string | null) => string;
   /** Theme-name used for alerts inside maths and fragments. */

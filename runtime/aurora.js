@@ -65,8 +65,13 @@
   function fadeIn(el, { dur = 0.7, shift = 16 } = {}) {
     return {
       dur,
-      begin() { reveal(el); el.style.opacity = 0; },
-      tick(a) { el.style.opacity = a; if (shift) el.style.transform = `translateY(${(1 - a) * shift}px)`; },
+      // A covered (transparent) item brightens from its faint state in place instead of
+      // vanishing first.
+      begin() { this.from = el.classList.contains('covered-step') ? 0.22 : 0; reveal(el); el.style.opacity = this.from; },
+      tick(a) {
+        el.style.opacity = this.from + (1 - this.from) * a;
+        if (shift && !this.from) el.style.transform = `translateY(${(1 - a) * shift}px)`;
+      },
       end() { el.style.opacity = ''; el.style.transform = ''; },
     };
   }
@@ -1496,7 +1501,9 @@
       if (el.dataset.anim === 'write') el.querySelectorAll('path, rect').forEach((p) => p.removeAttribute('style'));
       const vis = visibleAt(el, k);
       el.classList.toggle('hidden-step', !vis);
-      el.classList.toggle('covered-step', covered && !vis && firstFrom(el) > k);
+      // Entering a slide (k = −1), items about to fade in on step 0 start hidden; only later
+      // ones show as covered, or \setbeamercovered{transparent} would flash them on every entry.
+      el.classList.toggle('covered-step', covered && !vis && firstFrom(el) > Math.max(k, 0));
     }
     setFx(slide, k);
   }
@@ -1540,7 +1547,7 @@
     slide._fit = z;
     body.style.zoom = z === 1 ? '' : String(z);
   }
-  for (const img of stage.querySelectorAll('img')) if (!img.complete) img.addEventListener('load', () => { const sl = img.closest('.slide'); if (sl) { sl._fit = undefined; if (sl.classList.contains('active')) { autofit(sl); snapVisibility(); } } }, { once: true });
+  for (const img of stage.querySelectorAll('img')) if (!img.complete) img.addEventListener('load', () => { const sl = img.closest('.slide'); if (sl) { sl._fit = undefined; if (sl.classList.contains('active')) { fitRotated(sl); autofit(sl); snapVisibility(); } } }, { once: true });
   const snapVisibility = () => setVisibility(slides[state.s], state.k);
 
   // ---- media: autoplay videos and image sequences on entering a slide.
@@ -1567,9 +1574,20 @@
   }
   function stopAnim(a) { clearInterval(a._timer); a._timer = 0; }
 
+  // A quarter-turned image (angle=90) keeps its unrotated layout box; pad it so the
+  // rotated picture gets the room it actually needs, as in LaTeX.
+  function fitRotated(slide) {
+    for (const el of slide.querySelectorAll('[data-rot]')) {
+      el.style.margin = '';
+      const w = el.offsetWidth, h = el.offsetHeight;
+      if (w && h) el.style.margin = `${(w - h) / 2}px ${(h - w) / 2}px`;
+    }
+  }
+
   function show(s) {
     slides.forEach((el, i) => el.classList.toggle('active', i === s));
     const sl = slides[s];
+    fitRotated(sl);
     autofit(sl);
     if (pagenum) pagenum.textContent = sl.dataset.frame && DATA.footline !== 'none' ? `${sl.dataset.frame} / ${DATA.total || slides.length}` : '';
     const bar = sl.querySelector('.progress');
