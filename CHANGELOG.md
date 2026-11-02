@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+### Beamer compatibility
+
+Aurora now covers the Beamer that real decks use. The tour deck
+(`examples/tour/deck.tex`) builds with `pdflatex` too, and Aurora matches Beamer's
+slide count for every frame. The full list is in [docs/BEAMER.md](docs/BEAMER.md).
+
+- **Overlays.** The full spec syntax is supported: `<1,3->`, `<+(1)->`,
+  `<+-| alert@+>`, `beamer:`/`handout:` prefixes, and `+` evaluated once per spec.
+  - New: block-level `\only`/`\uncover`/`\visible`/`\invisible` (swap images,
+    lists, blocks); `\alt`, `\temporal`; bare `\onslide<n->` switches; `overprint`;
+    the `onlyenv`/`uncoverenv`/`altenv` family.
+  - Overlay-aware `\textbf<2>`, `\textcolor<2>`, `\item<alert@2>`.
+  - Overlays inside display and inline maths.
+  - `\pause` inside TikZ. Hidden TikZ parts keep the bounding box.
+  - Handout mode (`handout` class option or `--handout`).
+- **Structure.**
+  - `\input`/`\include`/`\subfile`/`\import`, with `file:line` diagnostics.
+  - `\subsection`; `\tableofcontents` with its options and clickable entries;
+    `\AtBeginSection`.
+  - Frame options: `\appendix`, `\againframe`, `[t]`/`[c]`/`[b]`, `label=`,
+    `noframenumbering`.
+  - `aspectratio=`.
+  - Notes after frames, `\note[item]`, and `\mode<article>`.
+  - Theme support: metropolis section pages, `[standout]` and the progress bar;
+    info-line footlines (Madrid etc.); `\logo` and `\titlegraphic`;
+    `\setbeamercolor` for alert and accent colours; the serif font theme.
+- **Content.**
+  - Numbered equations with `\label`/`\eqref`.
+  - Beamer's theorem set plus `\newtheorem`, with optional numbering and ∎ on proofs.
+  - `\newenvironment` and optional-argument macros.
+  - Enumerate labels from `enumerate`/`enumitem`; `\column`; `multicols`;
+    `quote`/`verse`/`abstract`; `tcolorbox`; `subfigure`; `\centering`.
+  - Tables: `\multirow`, `\rowcolor`, `\cellcolor`, vertical rules, header rows,
+    `\onslide` rows.
+  - Footnotes at the foot of the frame; `\hyperlink` and buttons; siunitx; accents;
+    xcolor mixing; boxes; `\hfill`.
+- **Code.**
+  - Syntax highlighting for about 45 languages in `lstlisting`/`minted`/
+    `\lstinline`/`\mintinline`.
+  - `\lstset`, line numbers, `highlightlines`, `\lstinputlisting`/`\inputminted`.
+  - `semiverbatim` with overlays.
+  - `%` inside verbatim is no longer treated as a comment.
+- **Figures and media.**
+  - PDF/EPS images (rasterised with Ghostscript), `\graphicspath`, image rows.
+  - `\movie`/`\includemedia`/`\video`, `\animategraphics`.
+  - Inline `\tikz`.
+- **Bibliography.** `thebibliography`, or `.bib` files read directly (no BibTeX
+  run). natbib and biblatex cite commands, numeric or author-year.
+- **Player.**
+  - Overfull frames shrink to fit.
+  - `b`/`w` blank the screen; `l` laser pointer; type a number and ⏎ to jump.
+  - The speaker view adds a clock.
+  - Videos autoplay; slide transitions.
+  - Printing gives one page per frame.
+- **CLI.**
+  - `aurora pdf` (`--all-steps` for one page per overlay, like Beamer).
+  - `snapshot --json` reports `shrunk` slides.
+
+### Chemistry
+
 - Curly arrows:
   - Bond → atom arrows are symmetric arches from the bond's middle.
   - The attack side is chosen by room at the target, so arrows no longer land on wedges.

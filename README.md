@@ -34,10 +34,14 @@ copy once Pages is enabled for `/docs`) and press → to step through.
 
 ## Why
 
-- **Keep writing Beamer.** Existing decks compile as they are: `\pause`, overlays,
-  `itemize`, `columns`, blocks, theorems, tables, listings, and TikZ (rendered by
-  your real LaTeX, overlays included). Add a `\usepackage{aurora}` line and the same
-  file still builds a PDF with `pdflatex`.
+- **Keep writing Beamer.** Existing decks compile as they are. That includes the full
+  overlay syntax (`<+-| alert@+>`, `\only`, `\alt`, `overprint`, overlays inside
+  equations and TikZ), `\input` files, sections with `\tableofcontents` and
+  `\AtBeginSection`, theorems, tables, highlighted listings, figures (PDF too),
+  footnotes, BibTeX bibliographies, and TikZ rendered by your real LaTeX. Aurora
+  matches Beamer's slide count frame for frame. Add a `\usepackage{aurora}` line and
+  the same file still builds a PDF with `pdflatex`. See
+  [docs/BEAMER.md](docs/BEAMER.md).
 - **Manim's look, minus the render loop.** The motion vocabulary is manim's: Write,
   Create, GrowFromCenter, ValueTracker, TransformMatchingTex, all on its easing
   curve. Everything runs live in the browser, so there are no videos to re-render.
@@ -45,8 +49,9 @@ copy once Pages is enabled for `/docs`) and press → to step through.
   Electron-pushing arrows are addressed by atom-map number. `\Transform` morphs one
   mechanism step into the next: atoms glide, new bonds form, leaving groups drift off.
 - **One file to share.** The output is a single offline HTML file with no server
-  or CDN. It includes a speaker view with notes and a timer, an overview grid, and
-  deep links to any step.
+  or CDN. It includes a speaker view with notes and a timer, an overview grid, a
+  laser pointer, black screen, and deep links to any step. It also prints to
+  PDF: one page per frame, or one per overlay like Beamer.
 - **Built for AI agents too.** It has a machine-readable command reference, JSON
   diagnostics with line numbers, PNG snapshots with overflow detection, and an
   agent skill. See [For AI agents](#for-ai-agents).
@@ -58,11 +63,12 @@ npm install -g aurora-slides        # or use `npx aurora-slides …`
 aurora init my-talk                 # deck.tex + aurora.sty + AGENTS.md
 aurora serve my-talk/deck.tex       # live preview at http://127.0.0.1:3000
 aurora build my-talk/deck.tex       # → my-talk/deck.html
+aurora pdf my-talk/deck.tex         # → my-talk/deck.pdf (handout-style, one page per frame)
 ```
 
 This needs Node ≥ 22.18. LaTeX is **optional**: you only need it for TikZ and
 chemfig fragments (`latex` + `dvisvgm`, both part of TeX Live / MacTeX) and for
-building the PDF version.
+building the PDF version with `pdflatex`. PDF/EPS images need Ghostscript (`gs`).
 
 In the browser:
 
@@ -71,8 +77,12 @@ In the browser:
 | → / space / click | Next step. If an animation is still running, the first press finishes it. |
 | ← | Previous step (snaps to that step's final state) |
 | `o` | Overview grid |
-| `s` | Speaker view in a second window (notes, next step, timer), kept in sync |
+| `s` | Speaker view in a second window (notes, next step, timer, clock), kept in sync |
+| `12` ⏎ | Go to slide 12 |
+| `b` / `w` | Black / white screen |
+| `l` | Laser pointer (also shown in the speaker window) |
 | `f` | Fullscreen |
+| ⌘P / Ctrl-P | Print or save as PDF, one page per frame |
 | `?` | Help |
 
 ## Writing slides
@@ -81,18 +91,23 @@ In the browser:
 
 | You write | You get |
 |---|---|
-| `\section{Results}` | Orange section label above each following title |
-| `\begin{frame}{Title}{Subtitle}` | Title header |
-| `\pause`, `\item<2->`, `\begin{itemize}[<+->]`, `\only<2>{…}`, `\uncover<3->{…}`, `\alert<2>{…}` | Click steps, each animated in |
-| `$…$`, `\[…\]`, `align*`, `equation*` | MathJax SVG. Display maths is *written* glyph by glyph. |
-| `columns`, `block`, `alertblock`, `exampleblock`, `theorem`, `definition`, `proof` | Themed layout |
-| `tabular` (with `booktabs`, `\multicolumn`, `\pause` between rows) | Native HTML tables |
-| `lstlisting`, `verbatim`, `minted` | Code blocks |
-| `\includegraphics` | Embedded image (PNG/JPG/SVG) |
-| `tikzpicture`, `\chemfig`, `circuitikz`, `tikzcd`, `\begin{latex}…\end{latex}` | Compiled with your LaTeX to theme-coloured SVG. Overlays such as `\draw<2->` and `\only<3>` become steps. |
-| `\note{…}` | Speaker notes |
-| `\newcommand`, `\definecolor`, `\DeclareMathOperator` | Work in both text and maths |
+| `\section{Results}`, `\subsection`, `\tableofcontents[currentsection]`, `\AtBeginSection` | Section label above each title, and clickable outlines |
+| `\begin{frame}[c,label=key]{Title}{Subtitle}` | Title header, alignment, link target |
+| `\pause`, `\item<2->`, `[<+-| alert@+>]`, `\only`, `\uncover`, `\alt`, `\temporal`, `overprint`, `\onslide<3->`, `<1,3>` | Click steps, each animated in. Block-level forms can swap images and lists. |
+| `$…$`, `\[…\]`, `align`, `equation` (numbered, `\eqref`), overlays inside | MathJax SVG. Display maths is *written* glyph by glyph, and overlay changes cross-fade. |
+| `columns`/`\column`, `block`, `alertblock`, theorems (`\newtheorem`), `tcolorbox`, `quote`, `multicols`, subfigures | Themed layout |
+| `tabular` with booktabs, `\multicolumn`, `\multirow`, `\rowcolor`, `\pause` between rows | Native HTML tables |
+| `lstlisting`, `minted`, `\lstinputlisting`, `semiverbatim` with `\alert<2>` | Syntax-highlighted code (about 45 languages) |
+| `\includegraphics` (PNG/JPG/SVG/PDF), `\graphicspath`, `\movie`, `\animategraphics` | Embedded images, video, and image sequences |
+| `tikzpicture` (with `\pause` and `\draw<2->`), `\chemfig`, `circuitikz`, `pgfplots`, `\begin{latex}…\end{latex}` | Compiled with your LaTeX to theme-coloured SVG. Each overlay becomes a step. |
+| `\cite`, `\citet`, `\parencite` + `\bibliography{refs}`, `\printbibliography`, `thebibliography` | Citations and a reference list, read straight from the `.bib` file |
+| `\footnote`, `\hyperlink`, `\SI{3}{\meter}`, `\href`, accents, `\textcolor{red!50!black}` | Rendered as in Beamer |
+| `\note{…}`, `\input{…}`, `\newcommand`, `\newenvironment`, `\definecolor` | Notes, includes, and macros in text, maths and scenes |
+| `aspectratio=43`, `handout`, `\usetheme{metropolis}`, `\setbeamercolor{alerted text}{…}` | Stage size, handouts, section pages, accent colours |
 | `\auroratheme{light}` (preamble) | Light palette for bright rooms. The default is the dark manim look. |
+
+The full list, with the places Aurora deliberately differs, is in
+**[docs/BEAMER.md](docs/BEAMER.md)**.
 
 ### Scenes: animated diagrams
 
@@ -164,15 +179,16 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
 ## Command line
 
 ```
-aurora build <deck.tex> [-o out.html] [--json]
+aurora build <deck.tex> [-o out.html] [--handout] [--json]
 aurora serve <deck.tex> [--port 3000]
+aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout]
 aurora check <deck.tex> [--json] [--strict]
 aurora snapshot <deck.tex> [--out dir] [--slides 1,3-5] [--all-steps] [--json]
-aurora init [dir] [--template basic|chemistry]
+aurora init [dir] [--template basic|talk|chemistry]
 aurora reference [--json | --md]
 ```
 
-`snapshot` uses Playwright, an optional dependency:
+`snapshot` and `pdf` use Playwright, an optional dependency:
 `npm i -D playwright && npx playwright install chromium`.
 
 ## For AI agents
@@ -188,16 +204,20 @@ Aurora is designed so that a coding agent can write a deck end to end and check 
   type, and default.
 - **`aurora check --json`** emits structured warnings with line numbers and
   "did you mean" suggestions for misspelled keys and commands.
-- **`aurora snapshot --json`** renders a PNG per slide and reports any slide whose
-  content overflows, plus runtime errors.
+- **`aurora snapshot --json`** renders a PNG per slide. It reports slides the
+  runtime had to shrink to fit (`shrunk`), any that still overflow, and runtime errors.
 - **[`llms.txt`](llms.txt)** is a one-page index for LLMs.
 - In the browser, `window.aurora` exposes `next()`, `prev()`, `jump(slide, step)`,
-  `steps(slide)` and `busy()` for automation.
+  `goto(label)`, `steps(slide)`, `busy()` and `printLayout()` for automation.
 
 ## Examples
 
 - [`examples/demo.tex`](examples/demo.tex): the showcase (plots, trackers,
   histograms, mechanisms, equation morphs).
+- [`examples/tour/deck.tex`](examples/tour/deck.tex): a tour of everyday Beamer
+  ([HTML](docs/tour.html)). It uses `\input` sections, outlines, every overlay form,
+  numbered equations, theorems, highlighted code, PDF figures, tables, footnotes,
+  and a BibTeX bibliography. It also builds with `pdflatex`.
 - [`examples/classic.tex`](examples/classic.tex): an unmodified-style Beamer deck
   with TikZ overlays, booktabs, a listing, and chemfig.
 - `templates/`: what `aurora init` starts you with.

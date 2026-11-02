@@ -34,7 +34,7 @@ test('explicit overlays compact away gaps', () => {
 });
 
 test('\\only produces a bounded range', () => {
-  const d = deck('\\begin{frame}x \\only<2>{y} z\\end{frame}');
+  const d = deck('\\begin{frame}x \\only<2>{y} z \\only<3>{w}\\end{frame}');
   assert.match(d.slides[0].html, /class="ov only" data-from="1" data-until="2"/);
 });
 
@@ -61,7 +61,8 @@ test('titlepage frame becomes a title slide with metadata', () => {
   const d = deck('\\begin{frame}\\titlepage\\end{frame}', '\\title{T}\\author{A}');
   assert.equal(d.slides[0].kind, 'title');
   assert.equal(d.meta.title, 'T');
-  assert.equal(d.meta.author, 'A');
+  assert.equal(d.meta.author, '<span class="t-person">A</span>');
+  assert.equal(d.meta.shortAuthor, 'A');
 });
 
 test('scene objects, events and shared step counter', () => {

@@ -85,7 +85,7 @@ test('tables, with \\pause between rows', () => {
 
 test('code listings are escaped verbatim', () => {
   const d = deck('\\begin{frame}[fragile]\\begin{lstlisting}\nif a < b: print("$x")\n\\end{lstlisting}\\end{frame}');
-  assert.match(d.slides[0].html, /<pre class="code"[^>]*>if a &lt; b: print\(&quot;\$x&quot;\)<\/pre>/);
+  assert.match(d.slides[0].html, /<pre class="code"[^>]*><code><span class="line">if a &lt; b: print\(&quot;\$x&quot;\)<\/span><\/code><\/pre>/);
 });
 
 test('every schema command has an example that parses cleanly', () => {

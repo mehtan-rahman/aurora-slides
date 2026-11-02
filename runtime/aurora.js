@@ -1466,51 +1466,114 @@
 
   // ---------------------------------------------------------------- player
   const stage = document.getElementById('stage');
+  const W = DATA.width || 1920, H = 1080;
   const slides = [...stage.querySelectorAll('.slide')];
   const pagenum = document.querySelector('.pagenum');
   const state = { s: 0, k: 0 };
 
   const scenesOf = (slide) => (slide._scenes ??= [...slide.querySelectorAll('.scene')].map((h) => new Scene(h, DATA.scenes[+h.dataset.scene])));
   const stepEls = (slide) => [...slide.querySelectorAll('[data-from]')];
-  const range = (el) => [+el.dataset.from, el.dataset.until !== undefined ? +el.dataset.until : Infinity];
 
-  function setAlerts(slide, k) {
-    for (const el of slide.querySelectorAll('.alert-timed')) {
-      const from = +el.dataset.alertFrom, until = el.dataset.alertUntil !== undefined ? +el.dataset.alertUntil : Infinity;
-      el.classList.toggle('on', from <= k && k < until);
-    }
+  /** Intervals [from, until) in which an element is visible (prefix '' or 'fx-'). */
+  function intervals(el, p = '') {
+    const ds = el.dataset;
+    const key = p ? 'fxOn' : 'on';
+    if (ds[key] !== undefined) return ds[key].split(' ').map((iv) => { const [a, b] = iv.split(':'); return [+a, b === '' ? Infinity : +b]; });
+    const from = +(p ? ds.fxFrom : ds.from), until = p ? ds.fxUntil : ds.until;
+    return [[from, until !== undefined ? +until : Infinity]];
+  }
+  const visibleAt = (el, k, p = '') => intervals(el, p).some(([a, b]) => a <= k && k < b);
+  const firstFrom = (el) => Math.min(...intervals(el).map(([a]) => a));
+
+  function setFx(slide, k) {
+    for (const el of slide.querySelectorAll('[data-fx-from]')) el.classList.toggle('on', visibleAt(el, k, 'fx-'));
   }
 
   function setVisibility(slide, k) {
     const covered = slide.dataset.covered !== undefined;
     for (const el of stepEls(slide)) {
-      const [from, until] = range(el);
       el.style.opacity = ''; el.style.transform = '';
       if (el.dataset.anim === 'write') el.querySelectorAll('path, rect').forEach((p) => p.removeAttribute('style'));
-      el.classList.toggle('hidden-step', !(from <= k && k < until));
-      el.classList.toggle('covered-step', covered && from > k);
+      const vis = visibleAt(el, k);
+      el.classList.toggle('hidden-step', !vis);
+      el.classList.toggle('covered-step', covered && !vis && firstFrom(el) > k);
     }
-    setAlerts(slide, k);
+    setFx(slide, k);
   }
 
   function animateStep(slide, k) {
-    const els = stepEls(slide);
     let i = 0;
-    for (const el of els) {
-      const [from, until] = range(el);
-      if (until === k) { el.classList.contains('only') ? el.classList.add('hidden-step') : engine.play(fadeOut(el)); continue; }
-      if (from !== k) continue;
+    for (const el of stepEls(slide)) {
+      const now = visibleAt(el, k), before = k > 0 && visibleAt(el, k - 1);
+      if (before && !now) {
+        if (el.classList.contains('only') || el.closest('.only.hidden-step')) el.classList.add('hidden-step');
+        else engine.play(fadeOut(el, { dur: el.classList.contains('layer') ? 0.3 : 0.5 }));
+        continue;
+      }
+      if (!now || before) continue;
       const parent = el.parentElement.closest('[data-from]');
-      if (parent && +parent.dataset.from === k) { reveal(el); continue; } // revealed with its parent
-      engine.play(el.dataset.anim === 'write' ? write(el) : fadeIn(el), i++ * 0.12);
+      if (parent && visibleAt(parent, k) && !(k > 0 && visibleAt(parent, k - 1))) { reveal(el); continue; } // revealed with its parent
+      const anim = el.dataset.anim;
+      if (anim === 'swap') { engine.play(fadeIn(el, { dur: 0.35, shift: 0 })); continue; }
+      engine.play(anim === 'write' ? write(el) : fadeIn(el), i++ * 0.12);
     }
-    setAlerts(slide, k);
+    setFx(slide, k);
     for (const sc of scenesOf(slide)) sc.playStep(k);
   }
 
+  // ---- auto-fit: shrink a frame's body (Beamer's `shrink`) instead of letting it overflow.
+  function autofit(slide) {
+    if (slide._fit !== undefined) return;
+    const body = slide.querySelector(':scope > .body');
+    if (!body) { slide._fit = 1; return; }
+    body.style.zoom = '';
+    const over = () => body.scrollHeight > body.clientHeight + 2 || body.scrollWidth > body.clientWidth + 2;
+    const last = +slide.dataset.steps - 1;
+    let z = 1;
+    // Content that differs per step (\only) can differ in height: fit the tallest.
+    const ks = last > 6 ? [0, last >> 1, last] : Array.from({ length: last + 1 }, (_, k) => k);
+    for (const k of ks) {
+      setVisibility(slide, k);
+      body.style.zoom = z === 1 ? '' : String(z);
+      for (let n = 0; n < 14 && over() && z > 0.45; n++) { z *= 0.94; body.style.zoom = String(z); }
+    }
+    slide._fit = z;
+    body.style.zoom = z === 1 ? '' : String(z);
+  }
+  for (const img of stage.querySelectorAll('img')) if (!img.complete) img.addEventListener('load', () => { const sl = img.closest('.slide'); if (sl) { sl._fit = undefined; if (sl.classList.contains('active')) { autofit(sl); snapVisibility(); } } }, { once: true });
+  const snapVisibility = () => setVisibility(slides[state.s], state.k);
+
+  // ---- media: autoplay videos and image sequences on entering a slide.
+  function mediaEnter(slide) {
+    for (const sl of slides) if (sl !== slide) {
+      sl.querySelectorAll('video, audio').forEach((v) => v.pause());
+      sl.querySelectorAll('.anim').forEach(stopAnim);
+    }
+    slide.querySelectorAll('video[data-autoplay], audio[data-autoplay]').forEach((v) => { v.currentTime = 0; v.play().catch(() => {}); });
+    slide.querySelectorAll('.anim[data-autoplay]').forEach(startAnim);
+  }
+  function startAnim(a) {
+    if (a._timer) return;
+    const imgs = [...a.children];
+    let i = a._i ?? 0, dir = 1;
+    a._timer = setInterval(() => {
+      imgs[i].hidden = true;
+      if (a.dataset.palindrome !== undefined && (i + dir >= imgs.length || i + dir < 0)) dir = -dir;
+      i += dir;
+      if (i >= imgs.length) { if (a.dataset.loop === undefined) { i = imgs.length - 1; stopAnim(a); } else i = 0; }
+      imgs[i].hidden = false;
+      a._i = i;
+    }, 1000 / (+a.dataset.fps || 12));
+  }
+  function stopAnim(a) { clearInterval(a._timer); a._timer = 0; }
+
   function show(s) {
     slides.forEach((el, i) => el.classList.toggle('active', i === s));
-    if (pagenum) pagenum.textContent = slides[s].classList.contains('title-slide') ? '' : `${s + 1} / ${slides.length}`;
+    const sl = slides[s];
+    autofit(sl);
+    if (pagenum) pagenum.textContent = sl.dataset.frame && DATA.footline !== 'none' ? `${sl.dataset.frame} / ${DATA.total || slides.length}` : '';
+    const bar = sl.querySelector('.progress');
+    if (bar) bar.style.setProperty('--p', String(s / Math.max(1, slides.length - 1)));
   }
 
   function enter(s) {
@@ -1518,21 +1581,28 @@
     const slide = slides[s];
     setVisibility(slide, -1);
     for (const sc of scenesOf(slide)) sc.build();
+    if (slide.dataset.trans) engine.play(fadeIn(slide, { dur: 0.6, shift: 0 }));
     animateStep(slide, 0);
+    mediaEnter(slide);
   }
 
   function snap(s, k) {
+    // Jumps land on the final look at once (no colour transitions).
+    stage.classList.add('snapping');
+    requestAnimationFrame(() => requestAnimationFrame(() => stage.classList.remove('snapping')));
+    const changed = !slides[s].classList.contains('active');
     show(s);
     const slide = slides[s];
     setVisibility(slide, k);
     for (const sc of scenesOf(slide)) sc.snapTo(k);
+    if (changed) mediaEnter(slide);
   }
 
   const lastStep = (s) => +slides[s].dataset.steps - 1;
 
   // Presenter and audience windows stay in sync over a BroadcastChannel.
   const channel = 'BroadcastChannel' in window ? new BroadcastChannel(`aurora:${document.title}`) : null;
-  const broadcast = (type) => channel?.postMessage({ type, s: state.s, k: state.k });
+  const broadcast = (type, extra = {}) => channel?.postMessage({ type, s: state.s, k: state.k, ...extra });
 
   let stepStart = 0;
   function next(remote = false) {
@@ -1562,6 +1632,24 @@
     afterMove(remote ? null : 'jump');
   }
 
+  /** Target of \hyperlink / TOC entries: a frame label, a \hypertarget, or `sec:N`. */
+  const backStack = [];
+  function goto(target) {
+    let s = -1;
+    const sec = /^sec:(\d+)$/.exec(target);
+    if (sec) s = slides.findIndex((sl) => sl.dataset.sec === sec[1]);
+    else if (target === 'back' || target === '') { const h = backStack.pop(); if (h) return jump(h[0], h[1]); return; }
+    else {
+      s = slides.findIndex((sl) => sl.dataset.label === target);
+      if (s < 0) { const t = stage.querySelector(`[data-target="${CSS.escape(target)}"]`); if (t) s = slides.indexOf(t.closest('.slide')); }
+      const m = /^(\d+)$/.exec(target);
+      if (s < 0 && m) s = +m[1] - 1;
+    }
+    if (s < 0) return;
+    backStack.push([state.s, state.k]);
+    jump(s, 0, true);
+  }
+
   function afterMove(msg) {
     const h = `#${state.s + 1}${state.k ? '.' + state.k : ''}`;
     // Browsers rate-limit replaceState (Safari: 100 per 10 s); fast automation must not break navigation.
@@ -1577,6 +1665,8 @@
       const oneAhead = (data.s === state.s && data.k === state.k + 1) || (data.s === state.s + 1 && data.k === 0 && state.k === lastStep(state.s));
       oneAhead ? next(true) : jump(data.s, data.k, false, true);
     } else if (data.type === 'jump') jump(data.s, data.k, false, true);
+    else if (data.type === 'screen') setScreen(data.mode, true);
+    else if (data.type === 'laser') moveLaser(data.x, data.y, data.on);
   });
 
   function readHash() {
@@ -1591,12 +1681,13 @@
     document.body.classList.add('presenter');
     ui = document.createElement('aside');
     ui.className = 'pv';
-    ui.innerHTML = `<div class="pv-top"><span class="pv-pos"></span><span class="pv-timer">00:00</span></div>
+    ui.innerHTML = `<div class="pv-top"><span class="pv-pos"></span><span class="pv-clock"></span><span class="pv-timer" title="click to reset">00:00</span></div>
       <div class="pv-next"></div><div class="pv-notes"></div>
-      <div class="pv-help">→ / space next · ← back · click timer to reset</div>`;
+      <div class="pv-help">→ / space next · ← back · b black screen · click timer to reset</div>`;
     document.body.appendChild(ui);
     ui.querySelector('.pv-timer').addEventListener('click', (e) => { e.stopPropagation(); t0 = Date.now(); });
     setInterval(() => {
+      ui.querySelector('.pv-clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       if (t0 === null) return;
       const sec = Math.floor((Date.now() - t0) / 1000);
       ui.querySelector('.pv-timer').textContent = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
@@ -1607,13 +1698,18 @@
     t0 ??= Date.now();
     const sl = slides[state.s];
     ui.querySelector('.pv-pos').textContent = `slide ${state.s + 1} / ${slides.length} · step ${state.k + 1} / ${lastStep(state.s) + 1}`;
-    const nextSlide = state.k < lastStep(state.s) ? 'next: step ' + (state.k + 2) : slides[state.s + 1] ? 'next: ' + (slides[state.s + 1].querySelector('.ftitle, .t-title')?.textContent ?? `slide ${state.s + 2}`) : 'end of deck';
+    const nextSlide = state.k < lastStep(state.s) ? 'next: step ' + (state.k + 2) : slides[state.s + 1] ? 'next: ' + (slides[state.s + 1].querySelector('.ftitle, .t-title, .secpage h1')?.textContent ?? `slide ${state.s + 2}`) : 'end of deck';
     ui.querySelector('.pv-next').textContent = nextSlide;
     ui.querySelector('.pv-notes').innerHTML = sl.querySelector('.notes')?.innerHTML ?? '<span class="pv-empty">No notes for this slide. Add \\note{…} in the frame.</span>';
   }
 
   // ---------------------------------------------------------------- overview grid (o)
   let overview = false;
+  function finalState(sl, i) {
+    autofit(sl);
+    setVisibility(sl, lastStep(i));
+    for (const sc of scenesOf(sl)) sc.snapTo(lastStep(i));
+  }
   function toggleOverview() {
     overview = !overview;
     document.body.classList.toggle('overview', overview);
@@ -1623,8 +1719,7 @@
       slides.forEach((sl, i) => {
         sl.classList.add('active');
         sl.classList.toggle('current', i === state.s);
-        setVisibility(sl, lastStep(i));
-        for (const sc of scenesOf(sl)) sc.snapTo(lastStep(i));
+        finalState(sl, i);
       });
       slides[state.s].scrollIntoView({ block: 'center' });
     } else {
@@ -1634,6 +1729,67 @@
     }
   }
 
+  // ---------------------------------------------------------------- printing (Ctrl-P, `aurora pdf`)
+  /** Lays out every slide (final step, or every step with 'all') as print pages. Returns the page count. */
+  function printLayout(mode = 'last') {
+    document.getElementById('print')?.remove();
+    const box = document.createElement('div');
+    box.id = 'print';
+    engine.finishAll();
+    const total = DATA.total || slides.length;
+    slides.forEach((sl, i) => {
+      sl.classList.add('active');
+      autofit(sl);
+      for (const sc of scenesOf(sl)) sc.build();
+      const ks = mode === 'all' ? Array.from({ length: lastStep(i) + 1 }, (_, k) => k) : [lastStep(i)];
+      for (const k of ks) {
+        setVisibility(sl, k);
+        for (const sc of scenesOf(sl)) sc.snapTo(k);
+        const page = sl.cloneNode(true);
+        page.classList.add('print-page');
+        page.classList.remove('current');
+        if (sl.dataset.frame && DATA.footline !== 'none') page.insertAdjacentHTML('beforeend', `<div class="pagenum">${sl.dataset.frame} / ${total}</div>`);
+        const logo = document.querySelector('#stage > .logo');
+        if (logo && !sl.classList.contains('plain')) page.appendChild(logo.cloneNode(true));
+        box.appendChild(page);
+      }
+      sl.classList.remove('active');
+    });
+    document.body.appendChild(box);
+    show(state.s);
+    snap(state.s, state.k);
+    return box.children.length;
+  }
+  addEventListener('beforeprint', () => { if (!document.getElementById('print')) printLayout('last'); });
+  addEventListener('afterprint', () => document.getElementById('print')?.remove());
+
+  // ---------------------------------------------------------------- black screen, laser pointer
+  const curtain = document.createElement('div');
+  curtain.className = 'curtain';
+  document.body.appendChild(curtain);
+  function setScreen(mode, remote = false) {
+    const cur = curtain.dataset.mode;
+    const m = cur === mode ? '' : mode;
+    curtain.dataset.mode = m;
+    if (!remote) channel?.postMessage({ type: 'screen', mode });
+  }
+  const laser = document.createElement('div');
+  laser.className = 'laser';
+  stage.appendChild(laser);
+  let laserOn = false;
+  function moveLaser(x, y, on) {
+    laser.classList.toggle('on', on);
+    laser.style.left = `${x}px`; laser.style.top = `${y}px`;
+  }
+  addEventListener('mousemove', (e) => {
+    if (!laserOn) return;
+    const r = stage.getBoundingClientRect();
+    const sc = r.width / W;
+    const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+    moveLaser(x, y, true);
+    channel?.postMessage({ type: 'laser', x, y, on: true });
+  });
+
   // ---------------------------------------------------------------- help overlay (?)
   const help = document.createElement('div');
   help.className = 'help';
@@ -1641,24 +1797,33 @@
     <tr><td>→ space click</td><td>next step (finishes a running animation first)</td></tr>
     <tr><td>← </td><td>previous step</td></tr>
     <tr><td>Home / End</td><td>first / last slide</td></tr>
+    <tr><td>12 ⏎</td><td>go to slide 12</td></tr>
     <tr><td>o</td><td>overview grid</td></tr>
     <tr><td>s</td><td>speaker view (notes, timer) in a new window</td></tr>
+    <tr><td>b / w</td><td>black / white screen</td></tr>
+    <tr><td>l</td><td>laser pointer</td></tr>
     <tr><td>f</td><td>fullscreen</td></tr>
+    <tr><td>⌘P / Ctrl-P</td><td>print or save as PDF</td></tr>
     <tr><td>?</td><td>toggle this help</td></tr></table></div>`;
   document.body.appendChild(help);
 
   function fit() {
     if (overview) return;
     const box = presenter ? { w: innerWidth * 0.66, h: innerHeight } : { w: innerWidth, h: innerHeight };
-    const sc = Math.min(box.w / 1920, box.h / 1080);
-    stage.style.transform = `translate(${(box.w - 1920 * sc) / 2}px, ${(box.h - 1080 * sc) / 2}px) scale(${sc})`;
+    const sc = Math.min(box.w / W, box.h / H);
+    stage.style.transform = `translate(${(box.w - W * sc) / 2}px, ${(box.h - H * sc) / 2}px) scale(${sc})`;
   }
 
+  let digits = '';
   addEventListener('resize', fit);
   addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest?.('input, textarea, [contenteditable]')) return;
     const k = e.key;
     if (overview && k !== 'o' && k !== 'Escape') return;
+    if (/^[0-9]$/.test(k)) { digits += k; return; }
+    if (k === 'Enter' && digits) { e.preventDefault(); jump(parseInt(digits, 10) - 1, 0, true); digits = ''; return; }
+    digits = '';
     if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter', 'n'].includes(k)) { e.preventDefault(); next(); }
     else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p'].includes(k)) { e.preventDefault(); prev(); }
     else if (k === 'Home') jump(0);
@@ -1666,11 +1831,19 @@
     else if (k === 'f') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
     else if (k === 'o' || (k === 'Escape' && overview)) toggleOverview();
     else if (k === 's') window.open(`${location.pathname}?presenter${location.hash}`, 'aurora-presenter', 'width=1400,height=800');
+    else if (k === 'b' || k === '.') setScreen('black');
+    else if (k === 'w' || k === ',') setScreen('white');
+    else if (k === 'l') { laserOn = !laserOn; document.body.classList.toggle('lasering', laserOn); if (!laserOn) { moveLaser(0, 0, false); channel?.postMessage({ type: 'laser', x: 0, y: 0, on: false }); } }
     else if (k === '?') help.classList.toggle('on');
-    else if (k === 'Escape') help.classList.remove('on');
+    else if (k === 'Escape') { help.classList.remove('on'); if (curtain.dataset.mode) setScreen(curtain.dataset.mode); }
   });
   addEventListener('click', (e) => {
-    if (e.target.closest('a, .pv') || getSelection()?.toString()) return;
+    const link = e.target.closest('a.jump');
+    if (link) { e.preventDefault(); goto(link.dataset.goto); return; }
+    const anim = e.target.closest('.anim');
+    if (anim) { anim._timer ? stopAnim(anim) : startAnim(anim); return; }
+    if (e.target.closest('a, .pv, video, audio') || getSelection()?.toString()) return;
+    if (curtain.dataset.mode) { setScreen(curtain.dataset.mode); return; }
     if (help.classList.contains('on')) { help.classList.remove('on'); return; }
     if (overview) {
       const sl = e.target.closest('.slide');
@@ -1691,11 +1864,12 @@
   fit();
   const start = readHash();
   start ? jump(start[0], start[1], !presenter) : jump(0, 0, true);
-  // Public API (used by `aurora snapshot` and handy for automation).
+  // Public API (used by `aurora snapshot` / `aurora pdf` and handy for automation).
   window.aurora = {
-    next: () => next(), prev: () => prev(), jump: (s, k) => jump(s, k), state,
+    next: () => next(), prev: () => prev(), jump: (s, k) => jump(s, k), goto, state,
     slides: slides.length, steps: (s) => lastStep(s) + 1,
     busy: () => engine.busy(), finish: () => engine.finishAll(),
+    printLayout,
     /** Freeze the current step's animations at `ms` after it started (deterministic frame capture). */
     seek: (ms) => { engine.frozen = true; cancelAnimationFrame(engine.raf); engine.raf = 0; engine.frame(stepStart + ms); },
   };

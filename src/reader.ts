@@ -88,7 +88,7 @@ export class Reader {
       const end = this.src.indexOf('>', this.pos);
       if (end > 0) {
         const spec = this.src.slice(this.pos + 1, end);
-        if (/^[\d+.\-, |a-z:]*$/.test(spec)) { this.pos = end + 1; return spec; }
+        if (/^[\d+.\-, |a-z:@()]*$/.test(spec)) { this.pos = end + 1; return spec; }
       }
     }
     this.pos = save;

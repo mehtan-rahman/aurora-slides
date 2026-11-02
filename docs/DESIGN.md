@@ -81,9 +81,20 @@ Each frame has a step counter that follows Beamer's `beamerpauses` semantics:
 - Scene events (`\pause` inside a scene) share the frame's counter, so text and
   animation interleave naturally.
 
+- Full overlay specs are parsed in `src/overlay.ts`: multi-range (`<1,3->`, emitted
+  as `data-on="0:1 2:"`), mode prefixes (`beamer:`, `handout:`), actions (`alert@`,
+  which drives `data-fx-*` style toggles), and `+`/`.` with offsets. All `+` in one
+  spec share one value.
+- Overlays inside maths and LaTeX fragments are handled by resolving `+` to numbers
+  (`resolveRelative`) and then rendering the source once per change point
+  (`atSlide`). The results become stacked layers that cross-fade.
+
 After a frame is parsed, the step numbers it actually uses are **compacted** into
 `0…n-1`. That avoids the empty "dead clicks" Beamer's counter arithmetic can produce.
-Every element carries `data-from`/`data-until`, and the runtime does the rest.
+A frame has as many steps as its last *start*. The end of an interval
+(`\only<3>` ends at 4) never adds a trailing empty step, which matches Beamer's
+slide count. Every element carries `data-from`/`data-until`, and the runtime does
+the rest.
 
 ### 3.3 Runtime (`runtime/`)
 

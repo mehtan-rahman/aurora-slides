@@ -1,0 +1,87 @@
+% A conference/seminar talk skeleton: outline per section, theorems, a figure,
+% overlays, and references. Plain Beamer: it also builds with pdflatex.
+\documentclass[aspectratio=169]{beamer}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{aurora}  % keeps `pdflatex` working; scenes become placeholders in the PDF
+
+\title[Short title]{The Full Title of the Talk}
+\subtitle{Conference or seminar name}
+\author[You]{Your Name\inst{1} \and Coauthor\inst{2}}
+\institute{\inst{1}Your University \and \inst{2}Their Lab}
+\date[Month Year]{City, Month Year}
+
+\setbeamertemplate{theorems}[numbered]
+\AtBeginSection[]{
+  \begin{frame}{Outline}
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\section{Motivation}
+
+\begin{frame}{The question}
+  \begin{itemize}[<+-| alert@+>]
+    \item State the problem in one sentence.
+    \item Say why it matters.
+    \item Say what is new in this work.
+  \end{itemize}
+  \note{Keep this under a minute.}
+\end{frame}
+
+\section{Results}
+
+\begin{frame}{Main result}
+  \begin{theorem}[Informal]
+    Under mild assumptions, the method converges at rate $\mathcal{O}(1/n)$.
+  \end{theorem}
+  \pause
+  \begin{equation}
+    \| x_n - x^\ast \| \le \frac{C}{n} \label{eq:rate}
+  \end{equation}
+  \pause
+  The constant $C$ in \eqref{eq:rate} depends only on the problem data \cite{ref1}.
+\end{frame}
+
+\begin{frame}{Comparison}
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    Method & Error & Time (s) \\
+    \midrule
+    Baseline & $10^{-2}$ & 12.0 \\ \pause
+    \alert{Ours} & $\mathbf{10^{-4}}$ & 3.1 \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\section{Conclusion}
+
+\begin{frame}{Summary}
+  \begin{columns}[T]
+    \column{0.55\textwidth}
+      \begin{enumerate}
+        \item<1-> First take-away
+        \item<2-> Second take-away
+        \item<3-> What comes next
+      \end{enumerate}
+    \column{0.4\textwidth}
+      \begin{block}{Code and data}
+        \url{https://example.org/project}
+      \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{References}
+  \begin{thebibliography}{9}
+    \bibitem{ref1} A.~Author. \newblock A paper title. \newblock \emph{Journal}, 2024.
+  \end{thebibliography}
+\end{frame}
+
+\end{document}

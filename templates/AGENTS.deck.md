@@ -17,8 +17,9 @@ aurora reference                    # every scene command, key, and default
 2. Run `aurora check deck.tex --json`. Fix **every** warning: each one has a
    `line` and a `message`, often with a "did you mean" suggestion.
 3. Run `aurora snapshot deck.tex --json` (needs `npm i -D playwright && npx playwright install chromium`)
-   and **look at the PNGs**. Fix any slide listed in `overflowing` by cutting
-   text, shrinking the scene `size`, or splitting the frame.
+   and **look at the PNGs**. Overfull frames are shrunk automatically. Treat any
+   slide listed in `shrunk` (below 90%) or `overflowing` as too full: cut text,
+   shrink the scene `size`, or split the frame.
 4. Repeat. To show the human, use `aurora serve deck.tex`, which live-reloads at
    http://127.0.0.1:3000.
 
@@ -26,15 +27,22 @@ aurora reference                    # every scene command, key, and default
 
 | Beamer | Aurora |
 |---|---|
-| `\section{X}` | Small orange uppercase label above the title of following frames |
-| `\begin{frame}{Title}{Subtitle}` | Bold white title |
-| `\pause`, `\item<2->`, `[<+->]`, `\only<2>{}`, `\uncover<2->{}` | Click steps (animated) |
-| `\[…\]`, `align*`, `equation*` | Maths *written* stroke by stroke |
-| `itemize`, `enumerate`, `columns`, `block`, `alertblock`, `theorem`, `tabular`, `lstlisting` | Native HTML, themed |
-| `tikzpicture`, `\chemfig`, `\begin{latex}…\end{latex}` | Compiled with real LaTeX to SVG (overlays inside TikZ work) |
+| `\section{X}`, `\subsection{Y}` | Small orange uppercase label (› subsection) above the title of following frames |
+| `\tableofcontents[currentsection]`, `\AtBeginSection[]{…}` | Clickable outline, inserted per section |
+| `\begin{frame}[c,label=k]{Title}{Subtitle}` | Bold white title. The default alignment is **top**, so add `[c]` to centre. |
+| `\pause`, `\item<2->`, `[<+-| alert@+>]`, `\only<2>{}`, `\uncover<2->{}`, `\alt<2>{a}{b}`, `overprint`, `\onslide<3->` | Click steps (animated). `\only`/`\uncover` may wrap images, lists and blocks. |
+| `\[…\]`, `align`, `equation` (numbered, `\label`/`\eqref`), overlays inside them | Maths *written* stroke by stroke; overlay changes cross-fade |
+| `itemize`, `enumerate[(a)]`, `columns`/`\column`, `block`, theorems, `tabular` (`\multirow`, `\rowcolor`), `lstlisting`/`minted` (highlighted), `semiverbatim` | Native HTML, themed |
+| `\includegraphics` (PNG/JPG/SVG/PDF), `\graphicspath`, `figure` + `\caption`, `subfigure` | Embedded images |
+| `tikzpicture`, `\chemfig`, `\begin{latex}…\end{latex}` | Compiled with real LaTeX to SVG (overlays and `\pause` inside TikZ work) |
+| `\cite{k}` + `\bibliography{refs}` / `\printbibliography` | Citations and references from the `.bib` file |
+| `\footnote`, `\hyperlink{label}{…}`, `\SI{9.81}{\meter\per\second\squared}` | Rendered as in Beamer |
+| `\input{sections/x}` | Spliced in; warnings show `file:line` |
 | `\note{…}` | Speaker notes (press `s` in the browser) |
 | `\auroratheme{light}` in the preamble | Light palette (the default is dark) |
 | `\begin{scene}…\end{scene}` | Animated diagram (see below) |
+
+Full list and known differences: `docs/BEAMER.md` in the Aurora package.
 
 ## Scenes
 

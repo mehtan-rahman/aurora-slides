@@ -15,6 +15,9 @@
 % Theme switch for the HTML build (no effect on the PDF): \auroratheme{light}
 \newcommand{\auroratheme}[1]{}
 
+% \video[opts]{file.mp4}: embedded in the HTML build; a placeholder in the PDF.
+\providecommand{\video}[2][]{\fbox{\parbox[c][0.3\textheight][c]{0.6\linewidth}{\centering\small\color{gray}video: \texttt{\detokenize{#2}}}}}
+
 \NewEnviron{scene}[1][]{%
   \def\aurora@poster{}%
   \pgfkeys{/aurora/scene, #1}%

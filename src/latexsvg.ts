@@ -34,11 +34,15 @@ export function fragmentPreamble(pre: string): string {
   return pre
     .replace(/\\documentclass(\[[^\]]*\])?\{[^}]*\}/, '')
     .replace(/\\use(color|font|inner|outer)?theme(\[[^\]]*\])?\{[^}]*\}/g, '')
-    .replace(/\\setbeamer\w+(\[[^\]]*\])?\{[^}]*\}(\{[^}]*\})?/g, '')
+    .replace(/\\setbeamer\w+\*?(\[[^\]]*\])?\{[^}]*\}(\s*\[[^\]]*\])*(\s*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\})?/g, '')
     .replace(/\\usepackage(\[[^\]]*\])?\{[^}]*(beamer|aurora|hyperref)[^}]*\}/g, '')
     .replace(/\\(title|subtitle|author|institute|date|logo|titlegraphic)(\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}/g, '')
     .replace(/\\auroratheme\{[^}]*\}/g, '')
-    .replace(/\\AtBeginSection(\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
+    .replace(/\\AtBegin(Section|Subsection|Part|Lecture)(\[[^\]]*\])?\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g, '')
+    .replace(/\\newtheorem\*?\{[^}]*\}(\[[^\]]*\])?\{[^}]*\}(\[[^\]]*\])?|\\theoremstyle\{[^}]*\}/g, '')
+    .replace(/\\(bibliographystyle|addbibresource|metroset|graphicspath|lstset|setminted|sisetup)(\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}/g, (m) => (/^\\(sisetup|graphicspath)/.test(m) ? m : ''))
+    .replace(/\\usepackage(\[[^\]]*\])?\{[^}]*(appendixnumberbeamer|pgfpages|beamerarticle)[^}]*\}/g, '')
+    .replace(/\\setbeamercovered\{[^}]*\}|\\mode\s*<[^>]*>|\\(usebackgroundtemplate|addtobeamertemplate)\s*\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
 }
 
 /**

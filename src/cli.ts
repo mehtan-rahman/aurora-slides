@@ -9,6 +9,7 @@ import { parseDeck, formatDiagnostic, type Deck } from './deck.ts';
 import { emitHtml } from './emit.ts';
 import { initChem } from './chem.ts';
 import { renderReference } from './reference.ts';
+import { loadSource } from './preprocess.ts';
 
 const pkgRoot = fileURLToPath(new URL('..', import.meta.url));
 const VERSION = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version as string;
@@ -16,16 +17,20 @@ const VERSION = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).
 const HELP = `aurora ${VERSION}: Beamer .tex → manim-style animated HTML slides
 
 usage:
-  aurora build <deck.tex> [-o out.html] [--json]   compile to one self-contained HTML file
+  aurora build <deck.tex> [-o out.html] [--handout] [--json]
+                                                   compile to one self-contained HTML file
   aurora serve <deck.tex> [--port 3000]            live-reloading preview server
   aurora check <deck.tex> [--json] [--strict]      parse and report problems without writing
+  aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout]
+                                                   print to PDF, one page per frame (needs playwright)
   aurora snapshot <deck.tex> [--out dir] [--slides 1,3-5] [--all-steps] [--json]
                                                    render PNGs of slides (needs playwright)
-  aurora init [dir] [--template basic|chemistry]   start a new deck (+ aurora.sty, AGENTS.md)
+  aurora init [dir] [--template basic|talk|chemistry]   start a new deck (+ aurora.sty, AGENTS.md)
   aurora reference [--json | --md]                 every scene command and its keys
   aurora help | --version
 
-in the browser: → / space / click next · ← back · o overview · s speaker view · f fullscreen · ? help
+in the browser: → / space / click next · ← back · o overview · s speaker view · f fullscreen
+                b black screen · l laser pointer · 12⏎ go to slide 12 · ? help
 docs: README.md, docs/REFERENCE.md, AGENTS.md (for AI agents)`;
 
 const C = process.stdout.isTTY ? { y: '\x1b[33m', r: '\x1b[31m', g: '\x1b[32m', d: '\x1b[2m', x: '\x1b[0m' } : { y: '', r: '', g: '', d: '', x: '' };
@@ -40,9 +45,12 @@ const json = has('--json');
 
 async function load(texPath: string): Promise<Deck> {
   if (!existsSync(texPath)) fail(`no such file: ${texPath}`);
-  const src = readFileSync(texPath, 'utf8');
-  if (/\\(Molecule|Transform)\b/.test(src)) await initChem();
-  return parseDeck(src, dirname(texPath));
+  const inputWarnings: string[] = [];
+  const source = loadSource(texPath, (m) => inputWarnings.push(m));
+  if (/\\(Molecule|Transform)\b/.test(source.text)) await initChem();
+  const deck = parseDeck(source, dirname(texPath), { handout: has('--handout') ? true : undefined, mainFile: basename(texPath) });
+  deck.warnings.unshift(...inputWarnings.map((message) => ({ message })));
+  return deck;
 }
 
 const strip = (h?: string) => (h ? h.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim() : undefined);
@@ -95,7 +103,7 @@ async function main() {
     const dir = resolve(positional[0] ?? '.');
     const tpl = flag('--template') ?? 'basic';
     const src = join(pkgRoot, 'templates', `${tpl}.tex`);
-    if (!existsSync(src)) fail(`unknown template "${tpl}" (available: basic, chemistry)`);
+    if (!existsSync(src)) fail(`unknown template "${tpl}" (available: basic, talk, chemistry)`);
     mkdirSync(dir, { recursive: true });
     const deck = join(dir, 'deck.tex');
     if (existsSync(deck)) fail(`${deck} already exists`);
@@ -159,7 +167,7 @@ async function main() {
     await rebuild();
     let timer: NodeJS.Timeout | undefined;
     watch(dirname(texPath), { recursive: true }, (_ev, name) => {
-      if (!name || /\.(html|log|aux|nav|snm|toc|out|pdf|png)$/.test(name)) return;
+      if (!name || /\.(html|log|aux|nav|snm|toc|out|pdf|synctex(\.gz)?|fls|fdb_latexmk|vrb)$/.test(name) || /(^|\/)(snapshots|node_modules|\.git)\//.test(name)) return;
       clearTimeout(timer);
       timer = setTimeout(rebuild, 150);
     });
@@ -177,6 +185,37 @@ async function main() {
     return;
   }
 
+  if (cmd === 'pdf') {
+    let pw: any;
+    try { const mod = 'playwright'; pw = await import(mod); } catch {
+      fail('pdf needs Playwright: npm i -D playwright && npx playwright install chromium');
+    }
+    const t0 = performance.now();
+    const deck = await loadOrFail(texPath);
+    const out = resolve(flag('-o') ?? texPath.replace(/\.tex$/, '') + '.pdf');
+    const tmp = join(mkdtempSync(join(tmpdir(), 'aurora-')), 'deck.html');
+    writeFileSync(tmp, emitHtml(deck));
+    const w = deck.meta.width, h = 1080;
+    const browser = await pw.chromium.launch();
+    const page = await browser.newPage({ viewport: { width: w, height: h } });
+    const errors: string[] = [];
+    page.on('pageerror', (e: Error) => errors.push(String(e)));
+    await page.goto(pathToFileURL(tmp).href);
+    await page.waitForFunction(() => (window as any).aurora);
+    const pages = await page.evaluate((all: boolean) => (window as any).aurora.printLayout(all ? 'all' : 'last'), has('--all-steps'));
+    await page.emulateMedia({ media: 'print' });
+    await page.pdf({ path: out, width: `${w}px`, height: `${h}px`, printBackground: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
+    await browser.close();
+    const ms = Math.round(performance.now() - t0);
+    if (json) console.log(JSON.stringify({ ok: errors.length === 0, output: out, pages, ms, runtimeErrors: errors, warnings: deck.warnings }, null, 2));
+    else {
+      printWarnings(deck, texPath);
+      for (const e of errors) console.error(`${C.r}runtime error${C.x} ${e}`);
+      console.log(`wrote ${relative(process.cwd(), out)} ${C.d}(${pages} pages, ${ms} ms)${C.x}`);
+    }
+    return;
+  }
+
   if (cmd === 'snapshot') {
     let pw: any;
     try { const mod = 'playwright'; pw = await import(mod); } catch {
@@ -189,34 +228,39 @@ async function main() {
     writeFileSync(tmp, emitHtml(deck));
     const scale = Number(flag('--scale') ?? 0.5);
     const browser = await pw.chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: scale });
+    const page = await browser.newPage({ viewport: { width: deck.meta.width, height: 1080 }, deviceScaleFactor: scale });
     const errors: string[] = [];
     page.on('pageerror', (e: Error) => errors.push(String(e)));
     page.on('console', (m: any) => { if (m.type() === 'error') errors.push(m.text()); });
     await page.goto(pathToFileURL(tmp).href);
     await page.waitForFunction(() => (window as any).aurora);
-    const shots: { slide: number; step: number; file: string; overflow: boolean }[] = [];
+    const shots: { slide: number; step: number; file: string; overflow: boolean; scale: number }[] = [];
     for (const n of parseSlides(flag('--slides'), deck.slides.length)) {
       const steps = deck.slides[n - 1].steps;
       const ks = has('--all-steps') ? Array.from({ length: steps }, (_, k) => k) : [steps - 1];
       for (const k of ks) {
-        const overflow = await page.evaluate(([s, kk]: number[]) => {
+        const { overflow, fit } = await page.evaluate(([s, kk]: number[]) => {
           (window as any).aurora.jump(s, kk);
+          (window as any).aurora.finish();
           const body = document.querySelector('.slide.active .body') as HTMLElement | null;
-          return !!body && body.scrollHeight > body.clientHeight + 4;
+          const fit = body ? parseFloat(body.style.zoom || '1') : 1;
+          return { overflow: !!body && body.scrollHeight > body.clientHeight + 4, fit };
         }, [n - 1, k]);
         await page.waitForTimeout(60);
         const f = join(outDir, `slide-${String(n).padStart(2, '0')}${ks.length > 1 ? `-step${k + 1}` : ''}.png`);
         await page.screenshot({ path: f });
-        shots.push({ slide: n, step: k + 1, file: f, overflow });
+        shots.push({ slide: n, step: k + 1, file: f, overflow, scale: fit });
       }
     }
     await browser.close();
     const overflowing = [...new Set(shots.filter((s) => s.overflow).map((s) => s.slide))];
-    if (json) console.log(JSON.stringify({ ok: errors.length === 0, shots, overflowing, runtimeErrors: errors, warnings: deck.warnings }, null, 2));
+    // Slides the runtime had to shrink noticeably to fit: a hint to cut or split.
+    const shrunk = [...new Map(shots.filter((s) => s.scale < 0.9).map((s) => [s.slide, { slide: s.slide, scale: s.scale }])).values()];
+    if (json) console.log(JSON.stringify({ ok: errors.length === 0, shots, overflowing, shrunk, runtimeErrors: errors, warnings: deck.warnings }, null, 2));
     else {
       printWarnings(deck, texPath);
       for (const o of overflowing) console.error(`${C.y}warning${C.x} slide ${o}: content overflows the slide`);
+      for (const o of shrunk) console.error(`${C.y}warning${C.x} slide ${o.slide}: content shrunk to ${Math.round(o.scale * 100)}% to fit`);
       for (const e of errors) console.error(`${C.r}runtime error${C.x} ${e}`);
       console.log(`wrote ${shots.length} PNG(s) to ${relative(process.cwd(), outDir) || '.'}`);
     }

@@ -1,13 +1,14 @@
 # Aurora
 
-> Aurora compiles Beamer LaTeX decks (.tex) into single-file, manim-style animated HTML presentations. It supports written equations, animated plots with value trackers, histograms, equation morphs, and organic-chemistry mechanisms (SMILES molecules, curly arrows, mechanism transforms). Existing Beamer decks (overlays, columns, blocks, tables, TikZ) compile unchanged.
+> Aurora compiles Beamer LaTeX decks (.tex) into single-file, manim-style animated HTML presentations. It supports written equations, animated plots with value trackers, histograms, equation morphs, and organic-chemistry mechanisms (SMILES molecules, curly arrows, mechanism transforms). Existing Beamer decks compile unchanged: the full overlay syntax, \input files, sections and outlines, theorems, tables, highlighted listings, PDF figures, footnotes, BibTeX bibliographies and TikZ.
 
-CLI: `aurora build|serve|check|snapshot|init|reference`. All machine-facing commands accept `--json`.
+CLI: `aurora build|serve|check|pdf|snapshot|init|reference`. All machine-facing commands accept `--json`.
 
 ## Docs
 
 - [README](README.md): overview, quick start, Beamer support, CLI
 - [Deck-author guide for agents](templates/AGENTS.deck.md): the edit → check → snapshot loop, layout budget, scene and chemistry recipes, gotchas
+- [Beamer compatibility](docs/BEAMER.md): every supported Beamer feature and the known differences
 - [Scene command reference](docs/REFERENCE.md): every command, key, type and default (also `aurora reference --json`)
 - [Agent skill](skills/aurora-slides/SKILL.md): drop-in skill for Claude Code and other agents
 - [Design](docs/DESIGN.md): architecture and step model
@@ -15,5 +16,6 @@ CLI: `aurora build|serve|check|snapshot|init|reference`. All machine-facing comm
 ## Examples
 
 - [Showcase deck](examples/demo.tex)
+- [Tour of everyday Beamer](examples/tour/deck.tex)
 - [Classic Beamer deck](examples/classic.tex)
 - [Starter: basic](templates/basic.tex), [Starter: chemistry](templates/chemistry.tex)
