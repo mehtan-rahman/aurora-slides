@@ -112,6 +112,7 @@ In the speaker view:
 | `\note{…}`, `\note<2>{…}`, `\input{…}`, `\newcommand`, `\newenvironment`, `\definecolor` | Speaker notes (per step too), includes, and macros in text, maths and scenes |
 | `aspectratio=43`, `handout`, `\usetheme{metropolis}`, `\setbeamercolor{alerted text}{…}` | Stage size, handouts, section pages, accent colours |
 | `\auroratheme{light}` (preamble) | Light palette for bright rooms. The default is the dark manim look. |
+| `\auroraentrance{fade}` (preamble) | A new slide's content fades in item by item. By default it simply appears, as in Beamer; only `\pause`d content and scenes animate. |
 
 The full list, with the places Aurora deliberately differs, is in
 **[docs/BEAMER.md](docs/BEAMER.md)**.

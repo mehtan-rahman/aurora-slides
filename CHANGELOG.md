@@ -73,6 +73,10 @@ slide count for every frame. The full list is in [docs/BEAMER.md](docs/BEAMER.md
 - The logo sits above an info-line footline.
 - Fix: with `\setbeamercovered{transparent}`, slides no longer flash their content faintly as they enter.
 
+### Slides
+
+- A new slide now appears at once, as in Beamer, instead of fading its content in item by item. Clicks (`\pause`, `<2->`) still animate their content, and scenes still play their first step. `\auroraentrance{fade}` brings back the fade.
+
 ### Speaker view
 
 - Live preview of what the next click shows, in place of the "next: step 2" text.

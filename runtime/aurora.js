@@ -1598,10 +1598,17 @@
   function enter(s) {
     show(s);
     const slide = slides[s];
-    setVisibility(slide, -1);
-    for (const sc of scenesOf(slide)) sc.build();
+    if (DATA.entrance === 'fade') {
+      // \auroraentrance{fade}: the slide's first-step content fades in, item by item.
+      setVisibility(slide, -1);
+      for (const sc of scenesOf(slide)) sc.build();
+      animateStep(slide, 0);
+    } else {
+      // Default, as in Beamer: the new slide is simply there. Only scenes animate their first step.
+      setVisibility(slide, 0);
+      for (const sc of scenesOf(slide)) { sc.build(); sc.playStep(0); }
+    }
     if (slide.dataset.trans) engine.play(fadeIn(slide, { dur: 0.6, shift: 0 }));
-    animateStep(slide, 0);
     mediaEnter(slide);
   }
 

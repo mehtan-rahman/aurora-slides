@@ -44,6 +44,7 @@ frame (the test suite checks this against Beamer's own `.nav` output).
 | `[shrink]`, `[squeeze]`, `[allowframebreaks]` | Aurora shrinks *every* frame whose content would overflow. Frames are never split. |
 | `[standout]` (metropolis) | Full-bleed accent frame |
 | `\transfade`, `\transdissolve`, … | The slide fades in |
+| (none) | As in Beamer, a new slide appears at once. Content revealed by clicks animates, and so do scenes. `\auroraentrance{fade}` in the preamble fades first-step content in instead. |
 
 ## Overlays
 

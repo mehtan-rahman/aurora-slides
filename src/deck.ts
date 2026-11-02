@@ -54,6 +54,8 @@ export interface DeckMeta {
   handout: boolean;
   /** Talk length in minutes for the speaker view's countdown (\\auroraduration, pdfpc's duration=). */
   duration?: number;
+  /** How a slide's first step appears: instantly (default, like Beamer) or 'fade' (\\auroraentrance{fade}). */
+  entrance?: 'fade';
 }
 
 export interface Deck {
@@ -340,6 +342,7 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
       const n = a ? parseFloat(a) : NaN;
       return Number.isFinite(n) && n > 0 ? n : undefined;
     })(),
+    entrance: preambleArg(pre, 'auroraentrance')?.long.trim() === 'fade' ? 'fade' : undefined,
   };
   metaRef = meta;
 

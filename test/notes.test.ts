@@ -32,3 +32,9 @@ test('talk length for the speaker view countdown: \\auroraduration or pdfpc\'s d
   assert.match(html, /"duration":12.5/);
   assert.match(html, /<aside class="notes"><div class="note-part"><p>n<\/p><\/div><\/aside>/);
 });
+
+test('\\auroraentrance{fade} opts back into fading slide content in', () => {
+  assert.equal(deck('\\begin{frame}x\\end{frame}').meta.entrance, undefined);
+  assert.equal(deck('\\begin{frame}x\\end{frame}', '\\auroraentrance{fade}').meta.entrance, 'fade');
+  assert.match(emitHtml(deck('\\begin{frame}x\\end{frame}', '\\auroraentrance{fade}')), /"entrance":"fade"/);
+});

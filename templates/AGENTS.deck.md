@@ -40,6 +40,7 @@ aurora reference                    # every scene command, key, and default
 | `\input{sections/x}` | Spliced in; warnings show `file:line` |
 | `\note{…}`, `\note<2>{…}` | Speaker notes (press `s` in the browser), optionally for one step; `\auroraduration{20}` sets the talk length for the countdown |
 | `\auroratheme{light}` in the preamble | Light palette (the default is dark) |
+| `\auroraentrance{fade}` in the preamble | Fade each slide's first-step content in (by default a new slide appears at once) |
 | `\begin{scene}…\end{scene}` | Animated diagram (see below) |
 
 Full list and known differences: `docs/BEAMER.md` in the Aurora package.
