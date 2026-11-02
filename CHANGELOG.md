@@ -23,6 +23,7 @@
   - Morphs are concerted: new bonds grow from the attacking atom, broken bonds stretch as they fade, and lone pairs slide to their new places.
 - `aurora.seek(ms)` freezes the current step at an exact time, for deterministic frame capture.
 - Fix: fast navigation no longer throws when the browser rate-limits `history.replaceState`.
+- In a git checkout, `bin/aurora.js` always runs `src/`, so a stale local `dist/` can't shadow edits.
 
 ## 0.1.0
 
