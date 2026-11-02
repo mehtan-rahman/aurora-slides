@@ -147,13 +147,13 @@
   \Molecule[id=r, at={0.2,0}, lp={3}, bond=1.6, with]{[CH3:1][C:2](=[O:3])[Cl:4]}
   \pause
   \CurlyArrow[from=lp:5, to=2]
-  \CurlyArrow[from=2=3, to=3, with, delay=0.3]
+  \CurlyArrow[from=2=3, to=3]
   \pause
   \Transform[id={r,nu}, lp={3:3}]{[CH3:1][C:2]([O-:3])([Cl:4])[OH:5]}
   \Text[id=lbl, at={2.1,1.8}, anchor=left, color=muted, size=26]{tetrahedral intermediate}
   \pause
   \CurlyArrow[from=lp:3, to=2-3]
-  \CurlyArrow[from=2-4, to=4, with, delay=0.3]
+  \CurlyArrow[from=2-4, to=4]
   \pause
   \Transform[id=r, lp={3,4}]{[CH3:1][C:2](=[O:3])[OH:5].[Cl-:4]}
   \FadeOut[id=lbl, with]
@@ -167,7 +167,7 @@
   \Molecule[id=s, at={0.6,0}, lp={5}, bond=1.5, with]{[CH3:2][C@@H:1]([CH2:3][CH3:4])[Br:5]}
   \pause
   \CurlyArrow[from=lp:6, to=1]
-  \CurlyArrow[from=1-5, to=5, with, delay=0.3]
+  \CurlyArrow[from=1-5, to=5]
   \pause
   \Transform[id={nu,s}, lp={6:2,5:4}]{[OH:6][C@H:1]([CH3:2])[CH2:3][CH3:4].[Br-:5]}
   \Text[at={0,-2.6}, color=muted, size=24]{backside attack: the stereocentre turns inside out}

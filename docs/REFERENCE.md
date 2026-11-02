@@ -311,7 +311,7 @@ Tween ValueTrackers to new values; everything bound to them redraws.
 
 ### `\Transform`
 
-Morph molecule(s) into a new SMILES. With curly arrows drawn, electron pairs first travel along them (bonds shrink, lone pairs and new bonds form where they land), then atoms relax into the product.
+Morph molecule(s) into a new SMILES: mapped atoms glide; following the curly arrows, a breaking bond contracts into the leaving group, and new bonds grow out of the atom donating the electrons.
 
 ```latex
 \Transform[id={r,nu}]{[CH3:1][C:2]([O-:3])([Cl:4])[OH:5]}
@@ -326,7 +326,6 @@ Content `{…}`: product SMILES (same atom maps)
 | `at` | vector "x,y" |  | Centre of the product (default: aligned to sources) |
 | `lp` | auto \| map list \| map:count list |  | Lone pairs to draw: auto = all heteroatoms; {3,5}; {3:2} |
 | `carbons` | auto \| none \| terminal \| all | auto | Which carbons get a C label (auto: all of them in molecules with ≤ 3 heavy atoms) |
-| `flow` | auto \| false | auto | Animate the electrons along the curly arrows first (arrow pushing), then relax into the product |
 | `run` | seconds |  | Duration of the intro / action |
 
 ### `\TransformTex`

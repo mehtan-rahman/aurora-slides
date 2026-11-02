@@ -76,7 +76,6 @@ export function layout(smiles: string, o: LayoutOpts = {}): MolGeom {
     const [ax, ay] = o.at ?? [0, 0];
     pts = pts.map(([x, y]) => [x - cx + ax, y - cy + ay]);
 
-    regularize(pts, j.bonds.map((b: any) => b.atoms as [number, number]));
     const bonds: Bond[] = j.bonds.map((b: any) => ({ a: b.atoms[0], b: b.atoms[1], order: b.bo ?? 1, side: 0 }));
     // Wedge/hash flags come from the molblock bond lines (narrow end = first atom).
     mb.slice(4 + n, 4 + n + bonds.length).forEach((l, k) => {
@@ -86,6 +85,7 @@ export function layout(smiles: string, o: LayoutOpts = {}): MolGeom {
       if (b.a !== a1) [b.a, b.b] = [b.b, b.a];
       b.stereo = st === 1 ? 'wedge' : 'hash';
     });
+    regularize(pts, bonds, j.atoms.map((a: any) => ({ heavy: (a.z ?? 6) !== 1, carbon: (a.z ?? 6) === 6, charged: !!a.chg })));
     const nbrs: number[][] = Array.from({ length: n }, () => []);
     for (const b of bonds) { nbrs[b.a].push(b.b); nbrs[b.b].push(b.a); }
 
@@ -135,14 +135,18 @@ export function valenceLp(g: MolGeom, i: number): number {
 }
 
 /**
- * Evens out bond angles at acyclic branch points (90° for 4 substituents, 120° for 3)
- * by rotating each substituent's whole branch rigidly about the centre. RDKit's
- * raw layout often leaves sp3 centres lopsided, which reads badly on a slide.
+ * Evens out bond angles at acyclic branch points by rotating each substituent's whole
+ * branch rigidly about the centre (RDKit's raw layout often leaves them lopsided):
+ *  - 3 substituents: 120° apart.
+ *  - 4 substituents: drawn in perspective, not as a flat + cross. Two substituents stay in
+ *    the plane 120° apart (carbon chains first, then charged atoms) and the other two become
+ *    a wedge and a hash 60° apart on the opposite side. Centres whose chirality the SMILES
+ *    specifies keep an even cross so RDKit's wedge still means what it should.
  */
-function regularize(pts: number[][], edges: [number, number][]) {
+function regularize(pts: number[][], bonds: Bond[], info: { heavy: boolean; carbon: boolean; charged: boolean }[]) {
   const n = pts.length;
   const nbrs: number[][] = Array.from({ length: n }, () => []);
-  for (const [a, b] of edges) { nbrs[a].push(b); nbrs[b].push(a); }
+  for (const b of bonds) { nbrs[b.a].push(b.b); nbrs[b.b].push(b.a); }
   // Atoms reachable from `start` without passing through `centre` (null if that loops back = ring).
   const branch = (centre: number, start: number): number[] | null => {
     const seen = new Set([start]);
@@ -156,39 +160,65 @@ function regularize(pts: number[][], edges: [number, number][]) {
     }
     return [...seen];
   };
+  const D = Math.PI / 180;
   for (let c = 0; c < n; c++) {
     const deg = nbrs[c].length;
     if (deg < 3 || deg > 4) continue;
     const branches = nbrs[c].map((m) => branch(c, m));
     if (branches.some((b) => b === null)) continue; // ring atom: leave the ring geometry alone
-    const step = (2 * Math.PI) / deg;
     const ang = (i: number) => Math.atan2(pts[i][1] - pts[c][1], pts[i][0] - pts[c][0]);
-    const order = nbrs[c].map((m, k) => ({ m, k, a: ang(m) })).sort((p, q) => p.a - q.a);
-    // Best common offset (circular mean of angle − slot).
+    // Neighbours in angular (cyclic) order.
+    let order = nbrs[c].map((m, k) => ({ m, k, a: ang(m) })).sort((p, q) => p.a - q.a);
+    const stereoHere = bonds.some((b) => b.stereo && b.a === c);
+    let slots: number[];
+    let perspective = false;
+    if (deg === 3) slots = [0, 120, 240];
+    else if (stereoHere) slots = [0, 90, 180, 270];
+    else {
+      // Pick the cyclically adjacent pair that most deserves to stay in the plane.
+      const keep = (o: { m: number; k: number }) => branches[o.k]!.length * 10 + (info[o.m].carbon ? 5 : 0) + (info[o.m].charged ? 3 : 0);
+      let best = 0;
+      for (let s = 1; s < 4; s++) if (keep(order[s]) + keep(order[(s + 1) % 4]) > keep(order[best]) + keep(order[(best + 1) % 4])) best = s;
+      order = [...order.slice(best), ...order.slice(0, best)];
+      slots = [-60, 60, 150, 210];
+      perspective = true;
+    }
+    // Best common offset (circular mean of angle − slot), kept on the 30° grid.
     let sx = 0, sy = 0;
-    order.forEach((o, slot) => { sx += Math.cos(o.a - slot * step); sy += Math.sin(o.a - slot * step); });
-    const off = Math.round(Math.atan2(sy, sx) / (Math.PI / 6)) * (Math.PI / 6); // stay on the 30° grid
-    order.forEach((o, slot) => {
-      const delta = off + slot * step - o.a;
+    order.forEach((o, i) => { sx += Math.cos(o.a - slots[i] * D); sy += Math.sin(o.a - slots[i] * D); });
+    const off = Math.round(Math.atan2(sy, sx) / (Math.PI / 6)) * (Math.PI / 6);
+    order.forEach((o, i) => {
+      let delta = off + slots[i] * D - o.a;
+      while (delta > Math.PI) delta -= 2 * Math.PI;
+      while (delta < -Math.PI) delta += 2 * Math.PI;
       const cs = Math.cos(delta), sn = Math.sin(delta);
       for (const v of branches[o.k]!) {
         const dx = pts[v][0] - pts[c][0], dy = pts[v][1] - pts[c][1];
         pts[v] = [pts[c][0] + dx * cs - dy * sn, pts[c][1] + dx * sn + dy * cs];
       }
     });
+    if (perspective) {
+      // Out-of-plane pair: the later atom in the SMILES (often the incoming group) gets the wedge.
+      const [p, q] = [order[2].m, order[3].m].sort((x, y) => x - y);
+      for (const [m, st] of [[p, 'hash'], [q, 'wedge']] as const) {
+        const b = bonds.find((x) => (x.a === c && x.b === m) || (x.b === c && x.a === m))!;
+        if (b.a !== c) [b.a, b.b] = [b.b, b.a];
+        b.stereo = st;
+      }
+    }
   }
 }
 
 type Pt = { x: number; y: number };
 
 /** Best rigid map (rotation, optional reflection, translation) taking `src` points onto `dst`. */
-function kabsch(src: Pt[], dst: Pt[], centre?: [number, number]): (x: number, y: number) => [number, number] {
+function kabsch(src: Pt[], dst: Pt[], centre?: [number, number]): { f: (x: number, y: number) => [number, number]; flip: boolean } {
   const mean = (arr: number[]) => arr.reduce((s, v) => s + v, 0) / arr.length;
   const px = mean(src.map((a) => a.x)), py = mean(src.map((a) => a.y));
   const qx = mean(dst.map((b) => b.x)), qy = mean(dst.map((b) => b.y));
   const tx = centre ? centre[0] : qx, ty = centre ? centre[1] : qy;
-  let best = { err: Infinity, f: (x: number, y: number): [number, number] => [x - px + tx, y - py + ty] };
-  if (src.length < 2) return best.f;
+  let best = { err: Infinity, flip: false, f: (x: number, y: number): [number, number] => [x - px + tx, y - py + ty] };
+  if (src.length < 2) return best;
   for (const flip of [false, true]) {
     let sxx = 0, sxy = 0;
     src.forEach((a, k) => {
@@ -210,9 +240,9 @@ function kabsch(src: Pt[], dst: Pt[], centre?: [number, number]): (x: number, y:
     const f = (x: number, y: number): [number, number] => { const [rx, ry] = rot(x, y); return [rx + tx + ox, ry + ty + oy]; };
     let err = 0;
     src.forEach((a, k) => { const [x, y] = f(a.x, a.y); err += (x - dst[k].x) ** 2 + (y - dst[k].y) ** 2; });
-    if (err < best.err - 1e-9) best = { err, f };
+    if (err < best.err - 1e-9) best = { err, f, flip };
   }
-  return best.f;
+  return best;
 }
 
 /** Connected components (atom index lists). */
@@ -234,12 +264,16 @@ function components(g: MolGeom): number[][] {
 export function alignTo(g: MolGeom, ref: Atom[], keepCentre?: [number, number]): MolGeom {
   const refBy = new Map(ref.filter((a) => a.map).map((a) => [a.map, a]));
   const atoms = g.atoms.map((a) => ({ ...a }));
+  let bonds = g.bonds;
   const groups = keepCentre ? [atoms.map((_, i) => i)] : components(g);
   for (const idx of groups) {
     const pairs = idx.filter((i) => atoms[i].map && refBy.has(atoms[i].map));
     if (!pairs.length) continue;
-    const f = kabsch(pairs.map((i) => g.atoms[i]), pairs.map((i) => refBy.get(g.atoms[i].map)!), keepCentre);
+    const { f, flip } = kabsch(pairs.map((i) => g.atoms[i]), pairs.map((i) => refBy.get(g.atoms[i].map)!), keepCentre);
     for (const i of idx) { const [x, y] = f(g.atoms[i].x, g.atoms[i].y); atoms[i].x = x; atoms[i].y = y; }
+    // Mirroring the drawing alone would show the other enantiomer; swapping every wedge and
+    // hash as well brings it back to the same molecule.
+    if (flip) bonds = bonds.map((b) => (b.stereo && idx.includes(b.a) ? { ...b, stereo: b.stereo === 'wedge' ? 'hash' : 'wedge' } : b));
   }
   // Push apart fragments that ended up overlapping (e.g. a leaving ion).
   if (groups.length > 1) {
@@ -259,7 +293,7 @@ export function alignTo(g: MolGeom, ref: Atom[], keepCentre?: [number, number]):
       }
     }
   }
-  return rederive({ ...g, atoms });
+  return rederive({ ...g, atoms, bonds: bonds.map((b) => ({ ...b })) });
 }
 
 /** Recomputes H-label side and double-bond offsets after atoms moved. */
@@ -337,4 +371,29 @@ export function bestFacing(g: MolGeom, i: number, target: [number, number], anti
     if (s > bestS + 1e-6) { best = th; bestS = s; }
   }
   return bestS - base > (15 * Math.PI) / 180 ? best : 0;
+}
+
+/**
+ * The stereoisomer a drawing actually depicts: writes the 2-D geometry (with its wedges
+ * and hashes) as a molfile and lets RDKit read the configuration back. Canonical SMILES,
+ * no atom maps. Used to check that layout and alignment never misdraw a stereocentre.
+ */
+export function depictedSmiles(g: MolGeom): string {
+  if (!RD) throw new Error('chemistry engine not initialised (call initChem first)');
+  const f = (v: number, w: number) => v.toFixed(4).padStart(w);
+  const i3 = (v: number) => String(v).padStart(3);
+  const lines = ['', '  aurora', '', `${i3(g.atoms.length)}${i3(g.bonds.length)}  0  0  0  0  0  0  0  0999 V2000`];
+  for (const a of g.atoms) lines.push(`${f(a.x, 10)}${f(a.y, 10)}${f(0, 10)} ${a.sym.padEnd(3)} 0  0  0  0  0  0  0  0  0  0  0  0`);
+  for (const b of g.bonds) lines.push(`${i3(b.a + 1)}${i3(b.b + 1)}${i3(b.order)}${i3(b.stereo === 'wedge' ? 1 : b.stereo === 'hash' ? 6 : 0)}`);
+  for (const [i, a] of g.atoms.entries()) if (a.charge) lines.push(`M  CHG  1${i3(i + 1).padStart(4)}${String(a.charge).padStart(4)}`);
+  lines.push('M  END');
+  const mol = RD.get_mol(lines.join('\n'));
+  try { return mol.get_smiles(); } finally { mol.delete(); }
+}
+
+/** Canonical SMILES of a (possibly atom-mapped) SMILES string, maps removed. */
+export function canonicalSmiles(smiles: string): string {
+  if (!RD) throw new Error('chemistry engine not initialised (call initChem first)');
+  const mol = RD.get_mol(smiles.replace(/:\d+\]/g, ']'));
+  try { return mol.get_smiles(); } finally { mol.delete(); }
 }

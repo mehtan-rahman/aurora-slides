@@ -123,7 +123,7 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
 
 ### Chemistry
 
-<p align="center"><img src="docs/images/sn2.gif" width="640" alt="SN2: hydroxide attacks, the stereocentre inverts (wedge becomes hash), bromide leaves"></p>
+<p align="center"><img src="docs/images/sn2.gif" width="640" alt="SN2: hydroxide attacks from the back, the stereocentre inverts, bromide leaves"></p>
 
 - `\Molecule[lp=auto]{SMILES}`: skeletal formula with lone pairs. Atom maps
   (`[C:2]`) name atoms.
@@ -133,13 +133,14 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
   atom, and bond → atom arrows arch from the bond's middle. To override, use
   TikZ-style keys: `side=above|below|left|right`, `out=`/`in=` angles in degrees,
   and `looseness=`.
-- `\Transform[id={a,b}]{product SMILES}` animates the step as **arrow pushing**.
-  Each curly arrow's electron pair travels along it and uses the arrow up as it
-  goes. A bond giving up its electrons shrinks toward the atom receiving them. On
-  arrival the pair becomes a lone pair, a new π bond, or (from a nucleophile) the
-  new σ bond, which grows outward from it. Charges move with the electrons, and
-  the atoms then relax into the product. Separate product fragments with `.`. Use
-  `flow=false` for a plain morph.
+- `\Transform[id={a,b}]{product SMILES}` morphs to the next structure, following the
+  curly arrows. A breaking bond lets go of the atom it leaves and contracts into
+  the leaving group. A new bond grows from one side: out of the attacking atom, or
+  out of the atom whose lone pair forms a π bond. Mapped atoms glide (inversions swing through), and lone
+  pairs and charges slide or fade. Separate product fragments with `.`.
+- Tetrahedral centres are drawn in perspective (two bonds in the plane, plus a
+  wedge and a hash), never as a flat + cross. Stereocentres from the SMILES
+  (`[C@H]`) are always drawn as the right enantiomer.
 - Reactants turn themselves to face their curly arrows: the nucleophile's lone
   pairs point at the target, and a leaving group sits anti to the attack (true
   backside SN2). Give `rotate=` or `orient=false` to place a molecule yourself.
@@ -148,7 +149,7 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
 
   ```latex
   \newcommand{\attack}[2]{\CurlyArrow[from=lp:#1, to=#2]}
-  \newcommand{\leave}[2]{\CurlyArrow[from=#1-#2, to=#2, with, delay=0.3]}
+  \newcommand{\leave}[2]{\CurlyArrow[from=#1-#2, to=#2]}
   % in a scene:  \attack{6}{1}  \leave{1}{5}
   ```
 

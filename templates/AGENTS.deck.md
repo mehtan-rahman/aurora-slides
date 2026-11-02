@@ -74,7 +74,7 @@ aurora reference                    # every scene command, key, and default
   \Molecule[id=sub, at={0,0}, lp={4}, with]{[CH3:2][Br:4]}
   \pause
   \CurlyArrow[from=lp:1, to=2]               % lone pair of atom 1 → atom 2
-  \CurlyArrow[from=2-4, to=4, with, delay=0.3] % C–Br bond electrons → Br
+  \CurlyArrow[from=2-4, to=4]                % C–Br bond electrons → Br (draws after the first)
   \pause
   \Transform[id={nu,sub}, lp={1:2,4:4}]{[OH:1][CH3:2].[Br-:4]}
 \end{scene}
@@ -86,10 +86,9 @@ aurora reference                    # every scene command, key, and default
   `lp:1` (lone pair on atom 1). Inside other objects, use `at=@2` with `offset={0.3,0.3}`.
 - Separate the products with `.`, e.g. a leaving group `.[Br-:4]`. Each fragment
   stays near where its atoms were.
-- The next `\Transform` animates the curly arrows as arrow pushing: electron pairs
-  travel along them, then the atoms move into the product. Draw one arrow per
-  electron pair, from where the electrons are to where they go. Add `flow=false`
-  for a plain morph.
+- Draw a mechanism's curly arrows one after another (no `with`), so each reads on its own.
+  The next `\Transform` fades them and follows them: a breaking bond contracts into the
+  leaving group, and new bonds grow out of the atom donating the electrons.
 - Reactants turn automatically to face their curly arrows (nucleophile toward the
   target, leaving group anti), so don't fight it with coordinates. Use `rotate=`
   or `orient=false` only if you need a specific drawing.

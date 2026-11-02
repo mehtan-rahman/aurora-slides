@@ -152,18 +152,6 @@ test('rotate= turns auto-orientation off', () => {
   assert.notDeepEqual([br('').x, br('').y], [br(', rotate=0').x, br(', rotate=0').y]);
 });
 
-test('Transform flow=false opts out of the electron-flow phase', () => {
-  const src = (k: string) => `\\begin{frame}\\begin{scene}
-    \\Molecule[id=nu, at={-5,0}, lp=auto]{[OH-:1]}\\Molecule[id=s, at={1,0}, lp={4}]{[CH3:2][Br:4]}
-    \\pause\\CurlyArrow[from=lp:1, to=2]\\CurlyArrow[from=2-4, to=4]
-    \\pause\\Transform[id={nu,s}${k}]{[OH:1][CH3:2].[Br-:4]}
-  \\end{scene}\\end{frame}`;
-  const ev = (k: string) => deck(src(k)).scenes[0].events.find((e) => e.type === 'transform')!;
-  assert.equal(ev('').flow, undefined);
-  assert.equal(ev(', flow=false').flow, false);
-  assert.equal(deck(src(', flow=false')).warnings.length, 0);
-});
-
 test('deck macros expand inside scenes (mechanism shorthands)', () => {
   const d = deck(`\\begin{frame}\\begin{scene}
     \\Molecule[id=nu, at={-5,0}, lp=auto]{[OH-:1]}\\Molecule[id=s, at={1,0}, lp={4}]{[CH3:2][Br:4]}
@@ -188,4 +176,23 @@ test('curly arrow placement keys validate', () => {
     \\CurlyArrow[from=1-2, to=2, sied=below]\\end{scene}\\end{frame}`);
   assert.equal(d.warnings.length, 1);
   assert.match(d.warnings[0].message, /did you mean "side"/);
+});
+
+test('drawings depict the right stereoisomer, even after alignment mirrors them', async () => {
+  const { depictedSmiles, canonicalSmiles } = await import('../src/chem.ts');
+  // Plain layouts.
+  for (const smi of ['C[C@H](O)CC', 'C[C@@H](Br)CC', 'N[C@@H](C)C(=O)O']) assert.equal(depictedSmiles(layout(smi)), canonicalSmiles(smi), smi);
+  // SN2: the product is aligned onto the substrate (this alignment mirrors, so wedges must swap).
+  const sub = layout('[CH3:2][C@@H:1]([CH2:3][CH3:4])[Br:5]', { at: [1, 0] });
+  const prodSmi = '[OH:6][C@H:1]([CH3:2])[CH2:3][CH3:4].[Br-:5]';
+  const prod = alignTo(layout(prodSmi), [...sub.atoms, { ...sub.atoms[0], map: 6, x: -2, y: 0 }]);
+  assert.equal(depictedSmiles(prod), canonicalSmiles(prodSmi));
+  // A tetrahedral centre without specified chirality is drawn in perspective (wedge + hash) …
+  const ti = layout('[CH3:1][C:2]([O-:3])([Cl:4])[OH:5]');
+  const c = ti.atoms.findIndex((a) => a.map === 2);
+  const out = ti.bonds.filter((b) => b.a === c && b.stereo).map((b) => b.stereo).sort();
+  assert.deepEqual(out, ['hash', 'wedge']);
+  const angs = ti.bonds.filter((b) => b.a === c || b.b === c).map((b) => { const o = ti.atoms[b.a === c ? b.b : b.a]; return Math.atan2(o.y - ti.atoms[c].y, o.x - ti.atoms[c].x); });
+  const gaps = angs.sort((p, q) => p - q).map((t, k, arr) => Math.round((((k + 1 < arr.length ? arr[k + 1] : arr[0] + 2 * Math.PI) - t) * 180) / Math.PI)).sort((p, q) => p - q);
+  assert.deepEqual(gaps, [60, 90, 90, 120], 'perspective, not a 90° cross');
 });

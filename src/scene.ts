@@ -27,8 +27,6 @@ export interface SceneEvent {
   run?: number;
   delay?: number;
   with?: boolean;
-  /** Transform: false = no electron-flow phase. */
-  flow?: boolean;
 }
 
 export interface SceneSpec {
@@ -274,14 +272,13 @@ export function parseScene(opts: string | null, body: string, ctx: Ctx): SceneSp
         const userId = typeof kv.as === 'string' ? kv.as : ids[0];
         const tid = `${userId}~${auto++}`;
         const tprops = props({ ...first.props, ...kv });
-        delete tprops.as; delete tprops.at; delete tprops.flow;
+        delete tprops.as; delete tprops.at;
         addObj({ id: tid, kind: 'Molecule', props: tprops, mol, hidden: true });
         for (const id of ids) if (cur(id) !== tid) alias.set(id, tid);
         alias.set(userId, tid);
         for (const sid of sources) { const i = liveMols.indexOf(sid); if (i >= 0) liveMols.splice(i, 1); }
         ev.sources = sources;
         ev.target = tid;
-        if (kv.flow === 'false') ev.flow = false;
       } else if (ev.type === 'transformtex') {
         const tex = r.readGroup().trim().replace(/^\$+|\$+$/g, '');
         const srcId = typeof kv.id === 'string' ? cur(kv.id) : '';

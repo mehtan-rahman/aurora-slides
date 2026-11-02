@@ -2,18 +2,18 @@
 
 ## Unreleased
 
-- Breaking bonds retract to nothing, starting from the leaving group's end.
 - Curly arrows:
   - Bond → atom arrows are symmetric arches from the bond's middle.
   - The attack side is chosen by room at the target, so arrows no longer land on wedges.
   - Heads keep clear of bare carbons.
   - New keys: `side`, `out`, `in`, `looseness`.
 - `\newcommand` macros expand inside scenes, for mechanism shorthands.
-- **Arrow-pushing animation.** When curly arrows lead into `\Transform`, the step plays like a textbook mechanism:
-  - Electron pairs travel along the arrows, using them up as they go.
-  - Bonds shrink toward the atom receiving their electrons, and pairs land as lone pairs or new π/σ bonds.
-  - Charges move with the electrons, then the atoms relax into the product.
-  - `flow=false` opts out.
+- **Mechanism steps follow their curly arrows.**
+  - A breaking bond lets go of the atom it leaves and contracts into the leaving group.
+  - New bonds grow from one side: out of the attacking atom, or out of the lone-pair donor for a π bond.
+- Tetrahedral centres are drawn in perspective (wedge and hash) instead of as a flat + cross.
+- Fix: stereocentres are always drawn as the correct enantiomer. Alignment used to mirror SN2 products, which showed retention instead of inversion.
+- Curly arrows in the examples draw one after another instead of overlapping.
 - Curly arrows follow textbook conventions: tails sit on the electrons, and heads point straight at the receiving atom or bond along smooth arcs.
 - Fix: a mechanism step cancelled mid-animation no longer leaves an atom label flipped (e.g. "HOH₃C").
 - Chemistry looks and moves like a textbook:

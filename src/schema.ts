@@ -133,9 +133,9 @@ export const COMMANDS: Record<string, CommandSpec> = {
 export const ACTION_SPECS: Record<string, CommandSpec> = {
   Animate: { summary: 'Tween ValueTrackers to new values; everything bound to them redraws.', keys: { run: COMMON_KEYS.run, '<tracker>': { type: num, desc: 'Target value for that tracker' } }, example: '\\Animate[t=1, run=2]' },
   Transform: {
-    summary: 'Morph molecule(s) into a new SMILES. With curly arrows drawn, electron pairs first travel along them (bonds shrink, lone pairs and new bonds form where they land), then atoms relax into the product.',
+    summary: 'Morph molecule(s) into a new SMILES: mapped atoms glide; following the curly arrows, a breaking bond contracts into the leaving group, and new bonds grow out of the atom donating the electrons.',
     content: 'product SMILES (same atom maps)',
-    keys: { id: { type: 'id | {id,id}', desc: 'Source molecule(s)' }, as: { type: 'identifier', desc: 'Name of the result (default: first source id)' }, at: { type: vec, desc: 'Centre of the product (default: aligned to sources)' }, lp: COMMANDS.Molecule.keys.lp, carbons: COMMANDS.Molecule.keys.carbons, flow: { type: 'auto | false', desc: 'Animate the electrons along the curly arrows first (arrow pushing), then relax into the product', default: 'auto' }, run: COMMON_KEYS.run },
+    keys: { id: { type: 'id | {id,id}', desc: 'Source molecule(s)' }, as: { type: 'identifier', desc: 'Name of the result (default: first source id)' }, at: { type: vec, desc: 'Centre of the product (default: aligned to sources)' }, lp: COMMANDS.Molecule.keys.lp, carbons: COMMANDS.Molecule.keys.carbons, run: COMMON_KEYS.run },
     example: '\\Transform[id={r,nu}]{[CH3:1][C:2]([O-:3])([Cl:4])[OH:5]}',
   },
   TransformTex: {

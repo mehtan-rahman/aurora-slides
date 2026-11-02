@@ -212,17 +212,25 @@ replace the placeholder with a static TikZ rendering of the scene's final state.
 - **Lone pairs and charges.** On written labels, lone pairs take the free
   cardinal sides (above, below, left, right); charges sit in a free corner. They
   carry through `\Transform`, recounted from valence.
-- **Electron flow.** When curly arrows lead into a `\Transform`, it plays as arrow
-  pushing (`flow=false` opts out). Each arrow's electron pair (two dots, starting
-  as the actual lone pair or on the bond) rides the arrow, which is consumed from
-  the tail and stays pinned to its atoms as they move. A breaking bond lets go
-  at the leaving group's end and retracts into the atom that stays. Without arrows,
-  it lets go of whichever atom travels further. On arrival the pair settles into the nearest new
-  lone-pair site, grows a π bond from the bond's middle, or, for a nucleophile,
-  drifts to the forming σ bond's midpoint and the bond grows out from it. Charges
-  leave with and arrive with the pairs. Timeline (fraction of the run, default
-  2.8 s): push 0–0.58, relax 0.12–0.95, overlapping so the attack reads as one
-  concerted movement.
+- **Arrows drive the bond animations.** When curly arrows lead into a `\Transform`,
+  each records its electron source and sink (`ob.flow`), which decides how bonds
+  change (the electrons themselves are not animated):
+  - A breaking bond lets go of the atom it leaves and contracts into the leaving
+    group, where its electrons go. Without arrows, it contracts into whichever atom
+    travels further. Wedges and hashes keep their look while contracting.
+  - Forming bonds grow from one side: a nucleophile's σ bond out of the attacking
+    atom, and a π bond out of the atom whose lone pair forms it. Without arrows, a π
+    bond grows out of the atom that loses a lone pair.
+
+  The arrows fade over the first quarter of the step (default 1.8 s).
+- **Tetrahedral centres.** Acyclic centres with four substituents and no specified
+  chirality are drawn in perspective: the two substituents that most deserve the
+  plane (longest branch, then carbon, then charged) sit 120° apart, and the other
+  two are a wedge and a hash 60° apart opposite. Specified stereocentres keep
+  RDKit's drawing.
+- **Stereo fidelity.** Alignment may mirror a fragment for a better fit, but then
+  swaps every wedge and hash, so the drawing still shows the same enantiomer. A
+  test round-trips drawings through RDKit (`depictedSmiles`) to check this.
 - **Mechanism morphs.** `\Transform` matches atoms by map number. Persisting atoms
   swing about persisting bonds. π bonds break or form in place over the middle of
   the motion; a new σ bond grows out of the atom that moved most; broken bonds
