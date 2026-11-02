@@ -1,148 +1,175 @@
+% Aurora's showcase deck: one slide per capability, with neutral content.
+% Build:   node bin/aurora.js build examples/demo.tex -o docs/demo.html
+% Present: open the HTML, press s for the speaker view, ? for all keys.
 \documentclass{beamer}
 \usepackage{amsmath}
-\usepackage{aurora}          % PDF fallback for scene environments (see DESIGN.md §5)
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{siunitx}
+\usepackage[version=4]{mhchem}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{aurora}          % PDF fallback for scene environments
 
-\auroraduration{10} % talk length: the speaker view (press s) counts down
-\title{Learning the Committor from the Hierarchy}
-\subtitle{An Aurora demo deck: Beamer in, manim-style HTML out}
-\author{Your Name}
-\institute{Aurora}
+\auroraduration{12}          % talk length: the speaker view counts down
+\graphicspath{{assets/}}
+
+\title{Aurora}
+\subtitle{Beamer in, animated HTML out}
+\author{The Aurora authors}
 \date{\today}
 
-\renewcommand{\Pr}{\mathbb{P}}
-\definecolor{accent}{HTML}{F0A35E}
+\newcommand{\R}{\mathbb{R}}
 
 \begin{document}
 
 \begin{frame}
   \titlepage
+  \note{Welcome. Press s for this speaker view: notes, a timer, and a preview of the next click.}
+\end{frame}
+
+\begin{frame}{Contents}
+  \tableofcontents
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\section{Reaction coordinate}
+\section{Text and overlays}
 
-\begin{frame}{Defining the committor}
-  Suppose every partial trajectory carried one number. It would tell us:
-  \begin{itemize}[<+->]
-    \item which trajectories deserve more computation,
-    \item where the boundary between not-yet-committed and committed lies,
-    \item and \alert{how far} along the reaction we really are.
+\begin{frame}{Lists that build up}
+  \begin{itemize}[<+-| alert@+>]
+    \item Each item appears on its own click
+    \item and is highlighted while it is new.
+    \item This is plain Beamer: \texttt{[<+-| alert@+>]}
   \end{itemize}
-  \pause
-  \[ q(x) \;=\; \Pr\big[\,\tau_B < \tau_A \;\big|\; x(0) = x\,\big] \]
+  \begin{enumerate}[<+->]
+    \item Numbered lists, \emph{emphasis}, \textbf{bold} and \texttt{code}
+    \item Colours: \textcolor{blue}{blue}, \textcolor{teal}{teal}, \textcolor{orange}{orange}, \textcolor{red}{red}
+  \end{enumerate}
+  \note{Every step here is ordinary Beamer overlay syntax.}
 \end{frame}
 
-\begin{frame}{Defining the committor}
-\begin{scene}[size={16,6.4}]
-  \ValueTracker[id=t, value=0.08]
-  \Line[from={-4.6,-2}, to={4.6,-2}, color=muted, width=3]
-  \Text[at={-5,-2}, color=red, size=32, bold]{A}
-  \Text[at={5,-2}, color=blue, size=32, bold, with]{B}
-  \Text[at={0,-2.45}, color=muted, size=22]{launch position}
-  \Dot[at={-4.4+8.8*t, -2}, r=0.13, color=white, glow]
-  \pause
-  \Text[at={-0.35,2.3}, anchor=right, size=30]{fraction reaching B =}
-  \DecimalNumber[at={-0.15,2.3}, value={0.02+0.97*smoothstep(0.05,0.95,t)}, digits=2, size=64, with]
-  \Rect[at={-2.5+2.5*(0.02+0.97*smoothstep(0.05,0.95,t)), 1.3}, w={5*(0.02+0.97*smoothstep(0.05,0.95,t))}, h=0.22, color=blue, fill=1, width=0]
-  \pause
-  \Animate[t=0.5, run=2]
-  \pause
-  \Animate[t=0.94, run=2]
-\end{scene}
+\begin{frame}{Swap, highlight and uncover}
+  \begin{itemize}
+    \item \only<1>{This sentence will change.}\only<2->{This sentence \alert{changed} in place.}
+    \item \alt<3->{\textcolor{teal}{Alternatives swap on a step.}}{Alternatives swap on a step.}
+    \item \uncover<4->{Uncovered text keeps its space until it appears.}
+    \item \textbf<5>{Bold}, \alert<5>{alerted} and \textcolor<5>{blue}{coloured} on one step only.
+  \end{itemize}
+  \note<4>{Point out that the line above did not jump when this appeared.}
 \end{frame}
 
-% ---------------------------------------------------------------------------
-\section{Structure of the unraveling}
-
-\begin{frame}{The trajectory is a deterministic function of the noise}
-\begin{scene}[size={16,5.6}]
-  \Axes[id=z, at={-4.6,0}, w=4.4, h=3, x={0,10,5}, y={-1,1,1}]
-  \Axes[id=xa, at={4.6,0}, w=4.4, h=3, x={0,10,5}, y={-1,1,1}, with]
-  \MathTex[at={-4.6,2.05}, color=blue]{z(t)}
-  \MathTex[at={4.6,2.05}, with]{x(t)}
-  \pause
-  \Plot[on=z, color=blue, samples=700]{0.55*noise(2.5*x,1) + 0.3*noise(6*x,2) + 0.15*noise(13*x,3)}
-  \Arrow[from={-1.7,0}, to={1.7,0}]
-  \Text[at={0,0.45}, color=muted, size=22, with]{adHOPS: deterministic}
-  \Text[at={0,-0.5}, color=orange, size=24, with]{each launch draws fresh noise}
-  \Band[on=xa, y={0.6,1}, color=blue]
-  \Band[on=xa, y={-1,-0.6}, color=red, with]
-  \Text[on=xa, at={-0.6,0.8}, color=blue, bold, size=26, with]{B}
-  \Text[on=xa, at={-0.6,-0.8}, color=red, bold, size=26, with]{A}
-  \Plot[on=xa, color=blue]{-0.75 + 1.55*sigmoid(1.3*(x-5)) + 0.05*sin(2.2*x)}
-\end{scene}
-\pause
-\begin{center}
-  \textcolor{orange}{Can we tell, mid-trajectory, which noise is heading for the event?}
-\end{center}
+\begin{frame}{Blocks, theorems and columns}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \begin{block}{Block}
+        A standard block.
+      \end{block}
+      \begin{alertblock}{Alert block}
+        Something important.
+      \end{alertblock}
+      \begin{exampleblock}{Example block}
+        Something illustrative.
+      \end{exampleblock}
+    \column{0.48\textwidth}
+      \pause
+      \begin{theorem}[Pythagoras]
+        For a right triangle with legs $a, b$ and hypotenuse $c$, $a^2 + b^2 = c^2$.
+      \end{theorem}
+      \pause
+      \begin{proof}
+        Arrange four copies of the triangle inside a square of side $a + b$.
+      \end{proof}
+  \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\section{Central claim}
+\section{Mathematics}
 
-\begin{frame}{Equations are \emph{written}, not faded}
-  The committor solves a boundary-value problem:
+\begin{frame}{Equations are written, stroke by stroke}
+  Inline maths such as $e^{i\pi} + 1 = 0$ and $f\colon \R \to \R$ sits in the text.
+  \pause
+  \begin{equation}\label{eq:gauss}
+    \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
+  \end{equation}
+  \pause
   \begin{align*}
-    \mathcal{L}\,q(x) &= 0, && x \notin A \cup B,\\
-    q\big|_A = 0, &\quad q\big|_B = 1 .
+    (a + b)^2 &= a^2 + 2ab + b^2 \\
+    (a - b)^2 &= a^2 - 2ab + b^2
   \end{align*}
   \pause
-  For a 1-D diffusion with potential $V(x)$ and temperature $\beta^{-1}$,
-  \[ q(x) = \frac{\int_a^x e^{\beta V(y)}\,dy}{\int_a^b e^{\beta V(y)}\,dy}. \]
+  Equation~\eqref{eq:gauss} is numbered, and the reference follows it.
+\end{frame}
+
+\begin{frame}{Equations morph}
+\begin{scene}[size={16,5}]
+  \MathTex[id=eq, at={0,1}, size=64]{x^2 + 2x + 1}
   \pause
-  \begin{alertblock}{Takeaway}
-    The committor is the \textbf{ideal reaction coordinate}: $q = \tfrac12$ is the transition-state surface.
-  \end{alertblock}
+  \TransformTex[id=eq]{(x+1)^2}
+  \pause
+  \TransformTex[id=eq]{(x+1)^2 = 0 \Rightarrow x = -1}
+  \pause
+  \MathTex[at={0,-1.2}, size=40, color=teal]{\ce{2H2 + O2 -> 2H2O}}
+\end{scene}
+  \note{Matching symbols glide to their new places, like manim's TransformMatchingTex.}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\section{Proof of concept}
+\section{Animated scenes}
 
-\begin{frame}{Open Dicke model and the committor shooting test}
-  The shooting test: launch fresh-noise trajectories from predicted $q = 1/2$ states,\\
-  and histogram the committors they actually realize.
-\begin{scene}[size={16,4.6}]
-  \Text[at={-4.2,1.6}, color=teal, size=26]{a correct reaction coordinate}
-  \Text[at={4.2,1.6}, color=red, size=26, with]{a poor coordinate}
-  \Axes[id=good, at={-4.2,-0.1}, w=4.6, h=2.2, x={0,1,0}, y={0,1,0}, only=x]
-  \Axes[id=poor, at={4.2,-0.1}, w=4.6, h=2.2, x={0,1,0}, y={0,1,0}, only=x, with]
-  \MathTex[on=good, at={0,-0.18}, size=30, color=muted]{0}
-  \MathTex[on=good, at={1,-0.18}, size=30, color=muted, with]{1}
-  \MathTex[on=good, at={0.5,-0.25}, size=34, color=muted, with]{q=\tfrac12}
-  \MathTex[on=poor, at={0,-0.18}, size=30, color=muted, with]{0}
-  \MathTex[on=poor, at={1,-0.18}, size=30, color=muted, with]{1}
-  \MathTex[on=poor, at={0.5,-0.25}, size=34, color=muted, with]{q=\tfrac12}
+\begin{frame}{Plots driven by a parameter}
+\begin{scene}[size={16,6}]
+  \Axes[id=ax, at={-2,0}, w=9, h=4.4, x={0,10,2}, y={-1.2,1.2,0.6}]
+  \ValueTracker[id=k, value=1]
   \pause
-  \Bars[on=good, values={0.02,0.05,0.1,0.36,0.98,0.98,0.36,0.1,0.05,0.02}, color=teal]
+  \Plot[on=ax, color=blue]{sin(k*x)}
+  \MathTex[at={5.2,1.4}, size=44, with]{y = \sin(kx)}
+  \Text[at={4.6,0.3}, anchor=left, size=30, color=muted, with]{k =}
+  \DecimalNumber[at={5.6,0.3}, value={k}, digits=2, size=44, with]
   \pause
-  \Bars[on=poor, values={0.9,0.5,0.18,0.06,0.03,0.03,0.06,0.18,0.4,0.48}, color=red]
+  \Animate[k=3, run=2.5]
+  \pause
+  \Plot[on=ax, color=orange]{0.6*sin(k*x/2)*exp(-0.15*x)}
+  \Animate[k=1.5, run=2, with]
+\end{scene}
+  \note{Anything that mentions a ValueTracker redraws while it animates.}
+\end{frame}
+
+\begin{frame}{Shapes, arrows and motion}
+\begin{scene}[size={16,6}]
+  \ValueTracker[id=t, value=0]
+  \Circle[id=c, at={-5,0}, r=1.3, color=blue, width=4]
+  \Rect[at={0,0}, w=2.6, h=2.6, color=teal, width=4, with]
+  \Line[from={3.6,-1.3}, to={6.4,1.3}, color=orange, width=4, with]
+  \pause
+  \Arrow[from={-3.4,0}, to={-1.6,0}]
+  \Arrow[from={1.6,0}, to={3.4,0}, with]
+  \pause
+  \Dot[at={-5+11*t, -2.4}, r=0.16, color=white, glow]
+  \Line[from={-5,-2.4}, to={6,-2.4}, color=muted, width=2, with]
+  \Animate[t=1, run=2.5]
+  \pause
+  \Indicate[id=c]
 \end{scene}
 \end{frame}
 
-% ---------------------------------------------------------------------------
-\section{Scope and novelty}
-
-\begin{frame}{Nested scope of the method}
-\begin{scene}[size={16,6.4}]
-  \Circle[at={-4,0}, r=3, color=muted, width=3]
-  \Text[at={-4,2.55}, color=muted, size=22, with]{any trajectory method}
+\begin{frame}{Data and noise}
+\begin{scene}[size={16,5.6}]
+  \Axes[id=bars, at={-4.4,-0.2}, w=5.6, h=3.4, x={0,1,0}, y={0,1,0}, only=x]
+  \Axes[id=sig, at={4,0}, w=6, h=3.6, x={0,10,5}, y={-1,1,1}, with]
+  \Text[at={-4.4,2.3}, size=26, color=muted, with]{a histogram}
+  \Text[at={4,2.3}, size=26, color=muted, with]{a noisy signal and its trend}
   \pause
-  \Circle[at={-4,0}, r=2.05, color=blue, width=3]
-  \Text[at={-4,1.6}, color=blue, size=22, with]{diffusive unravelings}
+  \Bars[on=bars, values={0.08,0.2,0.45,0.8,1,0.8,0.45,0.2,0.08}, color=teal]
   \pause
-  \Circle[id=inner, at={-4,0}, r=1.08, color=orange, width=3]
-  \Text[at={-4,0}, color=orange, size=28, bold, with]{adHOPS}
-  \pause
-  \Text[at={0.6,1.2}, anchor=left, size=28]{Committor learning applies at every level,}
-  \Text[at={0.6,0.6}, anchor=left, size=28, with, delay=0.2]{but bath memory only exists in the inner one.}
-  \Indicate[id=inner]
+  \Plot[on=sig, color=blue, samples=700]{0.5*sigmoid(1.2*(x-5)) - 0.25 + 0.3*noise(3*x,1) + 0.15*noise(9*x,2)}
+  \Plot[on=sig, color=orange, with]{0.5*sigmoid(1.2*(x-5)) - 0.25}
 \end{scene}
 \end{frame}
 
 % ---------------------------------------------------------------------------
 \section{Chemistry}
 
-\begin{frame}{Nucleophilic acyl substitution}
+\begin{frame}{Reaction mechanisms}
 \begin{scene}[size={16,6.2}]
   \Molecule[id=nu, at={-4.4,0.4}, lp=auto, bond=1.6]{[OH-:5]}
   \Molecule[id=r, at={0.2,0}, lp={3}, bond=1.6, with]{[CH3:1][C:2](=[O:3])[Cl:4]}
@@ -158,13 +185,13 @@
   \pause
   \Transform[id=r, lp={3,4}]{[CH3:1][C:2](=[O:3])[OH:5].[Cl-:4]}
   \FadeOut[id=lbl, with]
-  \Text[at={2.1,1.8}, anchor=left, color=muted, size=26]{acetic acid + chloride}
+  \Text[at={2.1,1.8}, anchor=left, color=muted, size=26]{substitution product}
 \end{scene}
-\note{Start with the nucleophile: hydroxide's lone pair attacks the carbonyl carbon.}
-\note<3>{The tetrahedral intermediate: point out the wedge (incoming OH) and the hash (Cl, about to leave).}
+  \note{Molecules come from SMILES; curly arrows name atoms by their map numbers.}
+  \note<3>{The tetrahedral centre is drawn in perspective: a wedge and a hash.}
 \end{frame}
 
-\begin{frame}{S\textsubscript{N}2: inversion of configuration}
+\begin{frame}{Stereochemistry}
 \begin{scene}[size={16,6.2}]
   \Molecule[id=nu, at={-5,0}, lp=auto, bond=1.5]{[OH-:6]}
   \Molecule[id=s, at={0.6,0}, lp={5}, bond=1.5, with]{[CH3:2][C@@H:1]([CH2:3][CH3:4])[Br:5]}
@@ -173,45 +200,80 @@
   \CurlyArrow[from=1-5, to=5]
   \pause
   \Transform[id={nu,s}, lp={6:2,5:4}]{[OH:6][C@H:1]([CH3:2])[CH2:3][CH3:4].[Br-:5]}
-  \Text[at={0,-2.6}, color=muted, size=24]{backside attack: the stereocentre turns inside out}
+  \Text[at={0,-2.6}, color=muted, size=24]{backside attack inverts the stereocentre}
 \end{scene}
 \end{frame}
 
-\begin{frame}{Equations morph, too}
-\begin{scene}[size={16,5}]
-  \MathTex[id=eq, at={0,1}, size=64]{x^2 + 2x + 1}
-  \pause
-  \TransformTex[id=eq]{(x+1)^2}
-  \pause
-  \TransformTex[id=eq]{(x+1)^2 = 0 \Rightarrow x = -1}
-  \MathTex[at={0,-1.2}, size=40, color=teal]{\ce{2H2 + O2 -> 2H2O}}
-\end{scene}
-\end{frame}
+% ---------------------------------------------------------------------------
+\section{Everything else}
 
-\section{Summary}
-
-\begin{frame}{What the compiler understands}
+\begin{frame}[fragile]{Tables and code}
   \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      \begin{itemize}
-        \item \textbf{Bold}, \emph{emphasis}, \texttt{code}, \textcolor{teal}{colour}
-        \item Inline math $e^{i\pi} + 1 = 0$ and user macros $\Pr[X]$
-        \item<2-> Overlays: \texttt{\textbackslash item<2->}, \only<2>{\alert{\texttt{\textbackslash only}}}\only<3>{\texttt{\textbackslash pause}}
-        \item<3-> Blocks, columns, images, notes
-      \end{itemize}
-    \end{column}
-    \begin{column}{0.46\textwidth}
-      \begin{block}{Navigation}
-        $\rightarrow$ / space / click: next step\\
-        $\leftarrow$: back (snaps state)\\
-        \texttt{f}: fullscreen, \texttt{?}: help
-      \end{block}
-      \begin{exampleblock}<3->{Also built in}
-        Curly-arrow \textbf{organic mechanisms}, equation morphs, speaker view (\texttt{s}), overview (\texttt{o}).
-      \end{exampleblock}
-    \end{column}
+    \column{0.44\textwidth}
+      \begin{tabular}{lrr}
+        \toprule
+        Item & Count & Share \\
+        \midrule
+        Alpha & 42 & \SI{35}{\percent} \\
+        \pause
+        Beta & 51 & \SI{43}{\percent} \\
+        \pause
+        Gamma & 26 & \SI{22}{\percent} \\
+        \bottomrule
+      \end{tabular}
+    \column{0.52\textwidth}
+\begin{lstlisting}[language=Python]
+def fib(n):
+    """Fibonacci numbers."""
+    a, b = 0, 1
+    for _ in range(n):
+        yield a
+        a, b = b, a + b
+\end{lstlisting}
   \end{columns}
-  \note{Speaker notes appear here in the speaker view (press s). Mention that the same .tex still compiles to PDF.}
+\end{frame}
+
+\begin{frame}{Images, units, links and footnotes}
+  \begin{columns}[c]
+    \column{0.5\textwidth}
+      \includegraphics[width=\linewidth]{aurora}
+    \column{0.46\textwidth}
+      \begin{itemize}
+        \item Images with the usual \texttt{width}, \texttt{trim} and \texttt{angle} keys
+        \item Units: \SI{9.81}{\metre\per\second\squared}, \SI{300}{\kelvin}
+        \item Chemistry in text: \ce{H2SO4}, \ce{CO2}
+        \item Links: \href{https://github.com}{a web page}, or jump to \hyperlink{last}{the last slide}
+        \item Footnotes collect at the bottom\footnote{Like this one.}
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[label=last]{Presenting}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \begin{tabular}{ll}
+        \toprule
+        Key & Action \\
+        \midrule
+        $\rightarrow$, space & next step \\
+        $\leftarrow$ & previous step \\
+        \texttt{s} & speaker view \\
+        \texttt{o} & overview \\
+        \texttt{b} / \texttt{w} & black / white screen \\
+        \texttt{l} & laser pointer \\
+        \texttt{?} & all keys \\
+        \bottomrule
+      \end{tabular}
+    \column{0.48\textwidth}
+      \begin{exampleblock}{Speaker view}
+        Notes for each step, a countdown timer and a preview of the next click,
+        in a second window that stays in sync.
+      \end{exampleblock}
+      \begin{block}{Same source, also a PDF}
+        This deck still compiles with \texttt{pdflatex}.
+      \end{block}
+  \end{columns}
+  \note{Mention aurora pdf --notes for a printed copy with these notes.}
 \end{frame}
 
 \end{document}

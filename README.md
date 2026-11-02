@@ -8,7 +8,7 @@ are *written* stroke by stroke, curves draw themselves, numbers tick live, and
 organic-chemistry mechanisms play out with curly arrows. You still click through
 it like a normal deck.
 
-<p align="center"><img src="docs/images/mechanism.gif" width="760" alt="A nucleophilic acyl substitution animating: curly arrows draw, atoms glide into the tetrahedral intermediate, chloride leaves"></p>
+<p align="center"><img src="docs/images/mechanism.gif" width="760" alt="A reaction mechanism animating: curly arrows draw, atoms glide into a tetrahedral intermediate drawn with a wedge and a hash, then the leaving group departs"></p>
 
 ```latex
 \begin{frame}{Nucleophilic acyl substitution}
@@ -25,8 +25,8 @@ it like a normal deck.
 ```
 
 <p align="center">
-  <img src="docs/images/plots.gif" width="49%" alt="Axes grow, then a noisy signal and a trajectory draw themselves on">
-  <img src="docs/images/tracker.gif" width="49%" alt="A live counter ticks up while a dot slides along a line">
+  <img src="docs/images/plots.gif" width="49%" alt="Axes draw on, a sine curve appears, and it redraws while its frequency parameter and a live counter animate">
+  <img src="docs/images/motion.gif" width="49%" alt="A circle, square and line draw on, arrows join them, and a glowing dot glides along a track">
 </p>
 
 **Try it:** open [`docs/demo.html`](docs/demo.html) in a browser (or the GitHub Pages
@@ -180,8 +180,9 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
 
 | | |
 |---|---|
-| ![Noise to trajectory](docs/images/noise.png) | ![Histograms](docs/images/histograms.png) |
+| ![Plots driven by a parameter](docs/images/plot.png) | ![A histogram and a noisy signal](docs/images/data.png) |
 | ![Equations are written](docs/images/equations.png) | ![Tetrahedral intermediate](docs/images/intermediate.png) |
+| ![Blocks, theorems and columns](docs/images/blocks.png) | ![Images, units, links and footnotes](docs/images/images.png) |
 | ![TikZ with overlays](docs/images/tikz.png) | ![chemfig and code](docs/images/chemfig.png) |
 
 ## Command line
@@ -220,8 +221,10 @@ Aurora is designed so that a coding agent can write a deck end to end and check 
 
 ## Examples
 
-- [`examples/demo.tex`](examples/demo.tex): the showcase (plots, trackers,
-  histograms, mechanisms, equation morphs).
+- [`examples/demo.tex`](examples/demo.tex): the showcase, one slide per capability
+  ([HTML](docs/demo.html)): overlays, blocks and theorems, written and morphing
+  equations, animated plots and shapes, data, reaction mechanisms and stereochemistry,
+  tables, highlighted code, images, units, links, footnotes, and speaker notes.
 - [`examples/tour/deck.tex`](examples/tour/deck.tex): a tour of everyday Beamer
   ([HTML](docs/tour.html)). It uses `\input` sections, outlines, every overlay form,
   numbered equations, theorems, highlighted code, PDF figures, tables, footnotes,
