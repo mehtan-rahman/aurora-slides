@@ -1,7 +1,7 @@
 # Contributing
 
 ```sh
-git clone <repo> && cd aurora
+git clone https://github.com/mehtan-rahman/aurora-slides.git && cd aurora-slides
 npm install
 npm run check                    # typecheck + tests + strict check of the demo deck
 node src/cli.ts serve examples/demo.tex

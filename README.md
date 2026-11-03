@@ -29,8 +29,8 @@ it like a normal deck.
   <img src="docs/images/motion.gif" width="49%" alt="A circle, square and line draw on, arrows join them, and a glowing dot glides along a track">
 </p>
 
-**Try it:** open [`docs/demo.html`](docs/demo.html) in a browser (or the GitHub Pages
-copy once Pages is enabled for `/docs`) and press → to step through.
+**Try it:** open the [live demo](https://mehtan-rahman.github.io/aurora-slides/demo.html)
+(or [`docs/demo.html`](docs/demo.html) from a checkout) and press → to step through.
 
 ## Why
 
@@ -59,7 +59,7 @@ copy once Pages is enabled for `/docs`) and press → to step through.
 ## Quick start
 
 ```sh
-npm install -g aurora-slides        # or use `npx aurora-slides …`
+npm install -g github:mehtan-rahman/aurora-slides   # (npm release coming; this builds from source)
 aurora init my-talk                 # deck.tex + aurora.sty + AGENTS.md
 aurora serve my-talk/deck.tex       # live preview at http://127.0.0.1:3000
 aurora build my-talk/deck.tex       # → my-talk/deck.html

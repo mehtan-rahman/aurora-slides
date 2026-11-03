@@ -17,6 +17,14 @@
     "overlays"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mehtan-rahman/aurora-slides.git"
+  },
+  "homepage": "https://github.com/mehtan-rahman/aurora-slides#readme",
+  "bugs": {
+    "url": "https://github.com/mehtan-rahman/aurora-slides/issues"
+  },
   "type": "module",
   "bin": {
     "aurora": "bin/aurora.js"
@@ -43,7 +51,8 @@
     "examples": "node src/cli.ts build examples/demo.tex -o docs/demo.html && node src/cli.ts build examples/tour/deck.tex -o docs/tour.html",
     "check": "npm run typecheck && npm test && node src/cli.ts check examples/demo.tex --strict && node src/cli.ts check examples/tour/deck.tex --strict",
     "prepublishOnly": "npm run check && npm run build",
-    "docs": "node scripts/gen-docs.ts"
+    "docs": "node scripts/gen-docs.ts",
+    "prepare": "tsc"
   },
   "dependencies": {
     "@rdkit/rdkit": "2024.3.5-1.0.0",
