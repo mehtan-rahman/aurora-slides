@@ -33,6 +33,19 @@ test('talk length for the speaker view countdown: \\auroraduration or pdfpc\'s d
   assert.match(html, /<aside class="notes"><div class="note-part"><p>n<\/p><\/div><\/aside>/);
 });
 
+test('\\auroraautoplay{5}: kiosk mode interval', () => {
+  assert.equal(deck('\\begin{frame}x\\end{frame}').meta.autoplay, undefined);
+  assert.equal(deck('\\begin{frame}x\\end{frame}', '\\auroraautoplay{5}').meta.autoplay, 5);
+  assert.equal(deck('\\begin{frame}x\\end{frame}', '\\auroraautoplay{nope}').meta.autoplay, undefined);
+  assert.match(emitHtml(deck('\\begin{frame}x\\end{frame}', '\\auroraautoplay{2.5}')), /"autoplay":2.5/);
+});
+
+test('aurora serve marks the page live so the runtime syncs through the server', () => {
+  const d = deck('\\begin{frame}x\\end{frame}');
+  assert.doesNotMatch(emitHtml(d), /"live":true/);
+  assert.match(emitHtml(d, { live: true }), /"live":true/);
+});
+
 test('\\auroraentrance{fade} opts back into fading slide content in', () => {
   assert.equal(deck('\\begin{frame}x\\end{frame}').meta.entrance, undefined);
   assert.equal(deck('\\begin{frame}x\\end{frame}', '\\auroraentrance{fade}').meta.entrance, 'fade');

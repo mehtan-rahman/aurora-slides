@@ -16,3 +16,13 @@ node src/cli.ts serve examples/demo.tex
   screenshot (`aurora snapshot`) to your PR.
 
 See [AGENTS.md](AGENTS.md) for a map of the code.
+
+## Releasing
+
+1. Move the `Unreleased` notes in `CHANGELOG.md` under a dated version heading and
+   set the same version in `package.json`.
+2. `npm run check && npm run examples` (refreshes `docs/demo.html` and `docs/tour.html`).
+3. Commit, then tag and push: `git tag v0.2.0 && git push origin main v0.2.0`.
+4. The `Release` workflow runs the checks, publishes to npm with provenance, and
+   creates the GitHub release. It needs an `NPM_TOKEN` repository secret (an npm
+   automation token). To publish by hand instead: `npm publish --access public`.

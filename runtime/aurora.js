@@ -13,10 +13,13 @@
 
   // ---------------------------------------------------------------- engine
   // An animation is { dur, rate?, begin?(), tick(alpha), end?() }.
+  // prefers-reduced-motion (or ?nomotion): every animation lands on its final frame at once.
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || new URLSearchParams(location.search).has('nomotion');
   const engine = {
     running: [],
     raf: 0,
     play(a, at = 0) {
+      if (reducedMotion && !this.frozen) { a.begin?.(); a.tick(1); a.end?.(); return; }
       a.t0 = performance.now() + at * 1000;
       a.started = false;
       this.running.push(a);
@@ -1593,6 +1596,7 @@
     if (pagenum) pagenum.textContent = sl.dataset.frame && DATA.footline !== 'none' ? `${sl.dataset.frame} / ${DATA.total || slides.length}` : '';
     const bar = sl.querySelector('.progress');
     if (bar) bar.style.setProperty('--p', String(s / Math.max(1, slides.length - 1)));
+    showInk();
   }
 
   function enter(s) {
@@ -1626,12 +1630,26 @@
 
   const lastStep = (s) => +slides[s].dataset.steps - 1;
 
-  // Presenter and audience windows stay in sync over a BroadcastChannel.
+  // Presenter and audience windows stay in sync over a BroadcastChannel. Under `aurora serve`
+  // the server relays instead (SSE in, POST out), which also reaches a phone on the network.
   // ?preview: the speaker view's "next step" pane. Driven only by its parent window (no input, no sync).
   const isPreview = new URLSearchParams(location.search).has('preview');
   if (isPreview) document.documentElement.classList.add('preview');
-  const channel = !isPreview && 'BroadcastChannel' in window ? new BroadcastChannel(`aurora:${document.title}`) : null;
-  const broadcast = (type, extra = {}) => channel?.postMessage({ type, s: state.s, k: state.k, ...extra });
+  if (new URLSearchParams(location.search).has('capture')) document.documentElement.classList.add('capture');
+  const cid = Math.random().toString(36).slice(2);
+  const channel = !isPreview && !DATA.live && 'BroadcastChannel' in window ? new BroadcastChannel(`aurora:${document.title}`) : null;
+  let relay = null;
+  if (DATA.live && !isPreview) {
+    const es = new EventSource('/__aurora_events');
+    es.onmessage = (e) => {
+      if (e.data === 'reload') { location.reload(); return; }
+      let d; try { d = JSON.parse(e.data); } catch { return; }
+      if (d.cid !== cid) applyRemote(d);
+    };
+    relay = (msg) => fetch('/__aurora_sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...msg, cid }) }).catch(() => {});
+  }
+  const send = (msg) => { channel?.postMessage(msg); relay?.(msg); };
+  const broadcast = (type, extra = {}) => send({ type, s: state.s, k: state.k, ...extra });
 
   let stepStart = 0;
   function next(remote = false) {
@@ -1655,6 +1673,7 @@
   function jump(s, k = 0, animate = false, remote = false) {
     engine.cancelAll();
     engine.frozen = false;
+    stepStart = performance.now();
     state.s = Math.max(0, Math.min(slides.length - 1, s));
     state.k = Math.max(0, Math.min(lastStep(state.s), k));
     if (animate && state.k === 0) enter(state.s); else snap(state.s, state.k);
@@ -1687,16 +1706,18 @@
     updatePresenter();
   }
 
-  channel && (channel.onmessage = ({ data }) => {
+  function applyRemote(data) {
     if (data.type === 'finish') engine.finishAll();
     else if (data.type === 'next' && (data.s !== state.s || data.k !== state.k)) {
       // Animate when the remote moved exactly one step ahead; otherwise snap.
       const oneAhead = (data.s === state.s && data.k === state.k + 1) || (data.s === state.s + 1 && data.k === 0 && state.k === lastStep(state.s));
       oneAhead ? next(true) : jump(data.s, data.k, false, true);
-    } else if (data.type === 'jump') jump(data.s, data.k, false, true);
+    } else if (data.type === 'jump' && (data.s !== state.s || data.k !== state.k)) jump(data.s, data.k, false, true);
     else if (data.type === 'screen') setScreen(data.mode, true);
     else if (data.type === 'laser') moveLaser(data.x, data.y, data.on);
-  });
+    else if (data.type === 'ink') applyInk(data);
+  }
+  channel && (channel.onmessage = ({ data }) => applyRemote(data));
 
   function readHash() {
     const m = /^#(\d+)(?:\.(\d+))?/.exec(location.hash);
@@ -1759,15 +1780,27 @@
       <div class="pv-next"><div class="pv-next-label"></div>
         <div class="pv-frame"><iframe class="pv-preview" title="next step" tabindex="-1" src="${location.pathname}?preview"></iframe><div class="pv-endcard">End of the deck</div></div></div>
       <div class="pv-notes"></div>
+      <div class="pv-ctl"><button class="pv-prev" type="button" aria-label="previous step">‹</button><button class="pv-next-btn" type="button" aria-label="next step">next ›</button></div>
+      <div class="pv-remote" hidden><img alt="QR code for the phone remote"><div class="pv-remote-text">Phone remote<br><small></small></div></div>
       <div class="pv-help">→ next · ← back · t pause timer · click timer to reset · + / − note size · b black screen</div>`;
     document.body.appendChild(ui);
     ui.style.setProperty('--pv-aspect', `${W} / ${H}`);
     preview = ui.querySelector('.pv-preview');
     preview.addEventListener('load', () => sendPreview());
     ui.querySelector('.pv-timer').addEventListener('click', (e) => { e.stopPropagation(); t0 = Date.now(); pausedAt = null; pausedFor = 0; timerTick(); });
+    ui.querySelector('.pv-prev').addEventListener('click', (e) => { e.stopPropagation(); prev(); });
+    ui.querySelector('.pv-next-btn').addEventListener('click', (e) => { e.stopPropagation(); next(); });
     setNotesScale(notesScale);
     setInterval(timerTick, 500);
     timerTick();
+    // Under `aurora serve --remote`, show the phone's URL as a QR code (not on the phone itself).
+    if (DATA.live && innerWidth > 760) fetch('/__aurora_remote').then((r) => r.json()).then(({ url }) => {
+      if (!url) return;
+      const box = ui.querySelector('.pv-remote');
+      box.querySelector('img').src = '/__aurora_qr.svg';
+      box.querySelector('small').textContent = url;
+      box.hidden = false;
+    }).catch(() => {});
   }
   /** Where the next click lands: the next step, or the first step of the next slide. */
   const nextPos = () => (state.k < lastStep(state.s) ? { s: state.s, k: state.k + 1 } : state.s < slides.length - 1 ? { s: state.s + 1, k: 0 } : null);
@@ -1888,7 +1921,7 @@
     const cur = curtain.dataset.mode;
     const m = cur === mode ? '' : mode;
     curtain.dataset.mode = m;
-    if (!remote) channel?.postMessage({ type: 'screen', mode });
+    if (!remote) send({ type: 'screen', mode });
   }
   const laser = document.createElement('div');
   laser.className = 'laser';
@@ -1898,14 +1931,103 @@
     laser.classList.toggle('on', on);
     laser.style.left = `${x}px`; laser.style.top = `${y}px`;
   }
-  addEventListener('mousemove', (e) => {
-    if (!laserOn) return;
+  /** Pointer position in stage units (1920 × 1080). */
+  const stagePoint = (e) => {
     const r = stage.getBoundingClientRect();
     const sc = r.width / W;
-    const x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc;
+    return { x: (e.clientX - r.left) / sc, y: (e.clientY - r.top) / sc };
+  };
+  let laserSent = 0;
+  addEventListener('mousemove', (e) => {
+    if (!laserOn) return;
+    const { x, y } = stagePoint(e);
     moveLaser(x, y, true);
     channel?.postMessage({ type: 'laser', x, y, on: true });
+    if (relay && performance.now() - laserSent > 40) { laserSent = performance.now(); relay({ type: 'laser', x, y, on: true }); }
   });
+
+  // ---------------------------------------------------------------- pen (d), clear (c)
+  // Freehand strokes over the current slide, kept per slide and mirrored to the other windows.
+  const ink = document.createElementNS(SVGNS, 'svg');
+  ink.setAttribute('class', 'ink');
+  ink.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  stage.appendChild(ink);
+  const inkLayers = new Map();
+  let penOn = false, stroke = null, strokePts = [];
+  function inkLayer(s) {
+    let g = inkLayers.get(s);
+    if (!g) { g = document.createElementNS(SVGNS, 'g'); inkLayers.set(s, g); ink.appendChild(g); }
+    return g;
+  }
+  function showInk() { for (const [s, g] of inkLayers) g.style.display = s === state.s ? '' : 'none'; }
+  function setPen(on) {
+    penOn = on;
+    document.body.classList.toggle('inking', on);
+    if (!on && stroke) { stroke = null; strokePts = []; }
+  }
+  const pathOf = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('');
+  function applyInk(d) {
+    const g = inkLayer(d.s);
+    if (d.clear) { g.replaceChildren(); return; }
+    const p = document.createElementNS(SVGNS, 'path');
+    p.setAttribute('d', d.d);
+    g.appendChild(p);
+    showInk();
+  }
+  function clearInk() { inkLayer(state.s).replaceChildren(); send({ type: 'ink', s: state.s, clear: true }); }
+  ink.addEventListener('pointerdown', (e) => {
+    if (!penOn || e.button !== 0) return;
+    e.preventDefault();
+    ink.setPointerCapture(e.pointerId);
+    const { x, y } = stagePoint(e);
+    strokePts = [[x, y]];
+    stroke = document.createElementNS(SVGNS, 'path');
+    stroke.setAttribute('d', pathOf(strokePts));
+    inkLayer(state.s).appendChild(stroke);
+  });
+  ink.addEventListener('pointermove', (e) => {
+    if (!stroke) return;
+    const { x, y } = stagePoint(e);
+    const last = strokePts[strokePts.length - 1];
+    if (Math.hypot(x - last[0], y - last[1]) < 2) return;
+    strokePts.push([x, y]);
+    stroke.setAttribute('d', pathOf(strokePts));
+  });
+  const endStroke = () => {
+    if (!stroke) return;
+    if (strokePts.length === 1) strokePts.push([strokePts[0][0] + 0.1, strokePts[0][1]]); // a dot
+    stroke.setAttribute('d', pathOf(strokePts));
+    send({ type: 'ink', s: state.s, d: stroke.getAttribute('d') });
+    stroke = null; strokePts = [];
+  };
+  ink.addEventListener('pointerup', endStroke);
+  ink.addEventListener('pointercancel', endStroke);
+
+  // ---------------------------------------------------------------- autoplay (a): kiosk mode
+  // Clicks every few seconds once the step's animation has finished, and loops at the end.
+  let autoOn = false, autoT = 0;
+  const autoDelay = () => (parseFloat(params.get('autoplay') ?? '') || DATA.autoplay || 5) * 1000;
+  const autoBadge = document.createElement('div');
+  autoBadge.className = 'autobadge';
+  autoBadge.textContent = '▶ autoplay · press a to stop';
+  document.body.appendChild(autoBadge);
+  function autoLoop() {
+    if (!autoOn) return;
+    clearTimeout(autoT);
+    if (engine.busy()) { autoT = setTimeout(autoLoop, 100); return; }
+    autoT = setTimeout(() => {
+      if (!autoOn) return;
+      const atEnd = state.s === slides.length - 1 && state.k === lastStep(state.s);
+      atEnd ? jump(0, 0, true) : next();
+      autoLoop();
+    }, autoDelay());
+  }
+  function setAuto(on) {
+    autoOn = on;
+    document.body.classList.toggle('autoplay', on);
+    clearTimeout(autoT);
+    if (on) autoLoop();
+  }
 
   // ---------------------------------------------------------------- help overlay (?)
   const help = document.createElement('div');
@@ -1919,6 +2041,8 @@
     <tr><td>s</td><td>speaker view (notes, timer) in a new window</td></tr>
     <tr><td>b / w</td><td>black / white screen</td></tr>
     <tr><td>l</td><td>laser pointer</td></tr>
+    <tr><td>d / c</td><td>draw on the slide / clear the drawing</td></tr>
+    <tr><td>a</td><td>autoplay (kiosk mode: advances by itself and loops)</td></tr>
     <tr><td>f</td><td>fullscreen</td></tr>
     <tr><td>⌘P / Ctrl-P</td><td>print or save as PDF</td></tr>
     <tr><td>?</td><td>toggle this help</td></tr></table></div>`;
@@ -1926,17 +2050,23 @@
 
   function fit() {
     if (overview) return;
-    const box = presenter ? { w: innerWidth * 0.66, h: innerHeight } : { w: innerWidth, h: innerHeight };
+    // The speaker view on a phone: the slide across the top, the panel below it.
+    const narrow = presenter && innerWidth <= 760;
+    document.body.classList.toggle('narrow', narrow);
+    const box = narrow ? { w: innerWidth, h: (innerWidth * H) / W } : presenter ? { w: innerWidth * 0.66, h: innerHeight } : { w: innerWidth, h: innerHeight };
+    if (ui) ui.style.top = narrow ? `${box.h}px` : '';
     const sc = Math.min(box.w / W, box.h / H);
     stage.style.transform = `translate(${(box.w - W * sc) / 2}px, ${(box.h - H * sc) / 2}px) scale(${sc})`;
   }
 
   let digits = '';
   addEventListener('resize', fit);
+  addEventListener('load', fit); // phones settle the viewport after the meta tag is applied
   addEventListener('keydown', (e) => {
     if (isPreview || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.target.closest?.('input, textarea, [contenteditable]')) return;
     const k = e.key;
+    if (autoOn && k !== 'a') setAuto(false);
     if (overview && k !== 'o' && k !== 'Escape') return;
     if (presenter && k === 't') { togglePause(); return; }
     if (presenter && (k === '+' || k === '=')) { setNotesScale(notesScale * 1.15); return; }
@@ -1953,12 +2083,16 @@
     else if (k === 's') window.open(`${location.pathname}?presenter${location.hash}`, 'aurora-presenter', 'width=1400,height=800');
     else if (k === 'b' || k === '.') setScreen('black');
     else if (k === 'w' || k === ',') setScreen('white');
-    else if (k === 'l') { laserOn = !laserOn; document.body.classList.toggle('lasering', laserOn); if (!laserOn) { moveLaser(0, 0, false); channel?.postMessage({ type: 'laser', x: 0, y: 0, on: false }); } }
+    else if (k === 'l') { laserOn = !laserOn; document.body.classList.toggle('lasering', laserOn); if (!laserOn) { moveLaser(0, 0, false); send({ type: 'laser', x: 0, y: 0, on: false }); } }
+    else if (k === 'd') setPen(!penOn);
+    else if (k === 'c') clearInk();
+    else if (k === 'a') setAuto(!autoOn);
     else if (k === '?') help.classList.toggle('on');
-    else if (k === 'Escape') { help.classList.remove('on'); if (curtain.dataset.mode) setScreen(curtain.dataset.mode); }
+    else if (k === 'Escape') { help.classList.remove('on'); setPen(false); if (curtain.dataset.mode) setScreen(curtain.dataset.mode); }
   });
   addEventListener('click', (e) => {
-    if (isPreview) return;
+    if (isPreview || penOn) return;
+    if (autoOn) setAuto(false);
     const link = e.target.closest('a.jump');
     if (link) { e.preventDefault(); goto(link.dataset.goto); return; }
     const anim = e.target.closest('.anim');
@@ -1976,7 +2110,7 @@
   let touchX = null;
   addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
   addEventListener('touchend', (e) => {
-    if (isPreview || touchX === null) return;
+    if (isPreview || penOn || touchX === null) return;
     const dx = e.changedTouches[0].clientX - touchX;
     touchX = null;
     if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); e.preventDefault(); }
@@ -1991,13 +2125,20 @@
 
   fit();
   const start = readHash();
-  start ? jump(start[0], start[1], !presenter && !isPreview) : jump(0, 0, !presenter && !isPreview);
-  // Public API (used by `aurora snapshot` / `aurora pdf` and handy for automation).
+  // The opening position is not broadcast: a window that joins must not move the others.
+  start ? jump(start[0], start[1], !presenter && !isPreview, true) : jump(0, 0, !presenter && !isPreview, true);
+  if (params.has('autoplay') && !presenter && !isPreview) setAuto(true);
+  // Public API (used by `aurora snapshot` / `aurora pdf` / `aurora video` and handy for automation).
   window.aurora = {
     next: () => next(), prev: () => prev(), jump: (s, k) => jump(s, k), goto, state,
+    /** Enter slide s with its entrance animation (as a click would). */
+    enter: (s) => jump(s, 0, true),
     slides: slides.length, steps: (s) => lastStep(s) + 1,
     busy: () => engine.busy(), finish: () => engine.finishAll(),
     printLayout,
+    autoplay: (on) => setAuto(on), pen: (on) => setPen(on), clear: () => clearInk(),
+    /** Seconds until the current step's animations are all done (0 when nothing is running). */
+    stepLength: () => engine.running.reduce((m, a) => Math.max(m, (a.t0 - stepStart) / 1000 + a.dur), 0),
     /** Freeze the current step's animations at `ms` after it started (deterministic frame capture). */
     seek: (ms) => { engine.frozen = true; cancelAnimationFrame(engine.raf); engine.raf = 0; engine.frame(stepStart + ms); },
   };

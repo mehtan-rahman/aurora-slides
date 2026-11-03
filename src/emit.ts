@@ -76,12 +76,10 @@ export function emitHtml(deck: Deck, opts: { live?: boolean } = {}): string {
   const rootStyle = Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';');
 
   const needsGlyphs = deck.scenes.some((s) => s.objects.some((o) => o.kind === 'DecimalNumber'));
-  const data = { scenes: deck.scenes, glyphs: needsGlyphs ? glyphTable() : undefined, width: m.width, footline: m.footline, total: m.totalFrames, duration: m.duration, entrance: m.entrance };
+  // `live`: served by `aurora serve`, which reloads on save and relays navigation between windows and phones.
+  const data = { scenes: deck.scenes, glyphs: needsGlyphs ? glyphTable() : undefined, width: m.width, footline: m.footline, total: m.totalFrames, duration: m.duration, entrance: m.entrance, autoplay: m.autoplay, live: opts.live ? true : undefined };
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
   const title = deck.meta.title.replace(/<[^>]+>/g, '') || 'Aurora deck';
-  const live = opts.live
-    ? `<script>new EventSource('/__aurora_events').onmessage = () => location.reload();</script>`
-    : '';
 
   return `<!doctype html>
 <html lang="en"${m.theme === 'light' ? ' data-theme="light"' : ''}${m.serif ? ' data-font="serif"' : ''} style="${rootStyle}">
@@ -101,7 +99,6 @@ ${m.logo ? `<div class="logo">${m.logo}</div>` : ''}
 </div>
 <script type="application/json" id="aurora-data">${json}</script>
 <script>${asset('aurora.js')}</script>
-${live}
 </body>
 </html>
 `;

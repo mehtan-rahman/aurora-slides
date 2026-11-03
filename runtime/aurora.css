@@ -172,6 +172,23 @@ body.presenter #stage { background: var(--bg); outline: 3px solid #2a2e35; borde
 .pv-note.fresh { border-left: 3px solid var(--orange); padding-left: 12px; }
 .pv-empty { color: var(--dim); font-size: 17px; }
 .pv-help { color: var(--dim); font-size: 13px; }
+/* Big next/back buttons: for the phone remote (and any touch screen). */
+.pv-ctl { display: none; gap: 10px; }
+.pv-ctl button { flex: 1; font: 600 22px var(--sans); color: var(--white); background: #262a31; border: 1px solid #343941; border-radius: 10px; padding: 16px 0; cursor: pointer; touch-action: manipulation; }
+.pv-ctl button:active { background: #343941; }
+.pv-ctl .pv-prev { flex: 0 0 26%; }
+@media (pointer: coarse) { .pv-ctl { display: flex; } }
+/* `aurora serve --remote`: the phone's URL as a QR code. */
+.pv-remote { display: flex; gap: 14px; align-items: center; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.pv-remote[hidden] { display: none; }
+.pv-remote img { width: 96px; height: 96px; border-radius: 6px; background: #fff; }
+.pv-remote small { font-family: var(--mono); font-size: 12px; color: var(--dim); word-break: break-all; }
+/* The speaker view on a phone: slide on top, panel below (the runtime sets the panel's top). */
+body.narrow .pv { left: 0; right: 0; width: auto; border-left: 0; border-top: 1px solid #2a2e35; padding: 16px 18px; gap: 12px; }
+body.narrow .pv-ctl { display: flex; }
+body.narrow .pv-help, body.narrow .pv-remote { display: none; }
+body.narrow .pv-notes { font-size: calc(19px * var(--pv-notes, 1)); }
+body.narrow .pv-timer { font-size: 34px; }
 /* ?preview: the speaker view's next-step pane. */
 html.preview body { cursor: default; pointer-events: none; }
 html.preview .pagenum { display: none; }
@@ -379,6 +396,21 @@ video.media { max-width: 100%; max-height: 780px; border-radius: 6px; background
 .laser { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 18px 6px rgba(255,59,48,.55); pointer-events: none; display: none; z-index: 5; }
 .laser.on { display: block; }
 body.lasering { cursor: none; }
+
+/* Pen (d): strokes over the slide, one layer per slide. */
+.ink { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; overflow: visible; }
+.ink path { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
+body.inking .ink { pointer-events: auto; cursor: crosshair; touch-action: none; }
+body.overview .ink, html.preview .ink { display: none; }
+
+/* Autoplay (a) */
+.autobadge { position: fixed; left: 14px; bottom: 12px; color: var(--muted); font: 13px var(--sans); background: rgba(0,0,0,.35); padding: 4px 10px; border-radius: 6px; display: none; z-index: 6; }
+body.autoplay .autobadge { display: block; }
+
+/* Motion off: prefers-reduced-motion, or frame capture (`aurora video`) where CSS transitions would not be frozen. */
+@media (prefers-reduced-motion: reduce) { .fx, .fx * { transition: none !important; } }
+html.capture .fx, html.capture .fx * { transition: none !important; }
+html.capture .autobadge { display: none !important; }
 
 /* Notes */
 .note-items { margin: 0; padding-left: 1.2em; }

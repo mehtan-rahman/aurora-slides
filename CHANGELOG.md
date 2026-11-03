@@ -1,6 +1,34 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-11-03
+
+### Presenting
+
+- **Phone remote.** `aurora serve --remote` opens the server to your network and
+  prints a QR code (also shown in the speaker view). The phone gets the speaker view
+  laid out for a small screen, with next/back buttons, the notes and the timer. All
+  windows served this way sync through the server instead of a same-browser channel,
+  and a window that joins late lands on the current step.
+- **Pen.** `d` draws on the slide, `c` clears it. Strokes are kept per slide and
+  mirrored to the other windows.
+- **Autoplay / kiosk mode.** `a` advances by itself and loops; `\auroraautoplay{8}`
+  sets the interval and `deck.html?autoplay` starts it on load. Any key or click stops it.
+- **Reduced motion.** With the system setting (or `?nomotion`), animations land on
+  their final frame at once.
+- **`aurora video`** renders the deck to WebM or H.264 MP4, frame by frame with the
+  engine's clock frozen, so the output is deterministic. `--slides`, `--fps`,
+  `--hold` and `--scale`.
+- Big next/back buttons in the speaker view on any touch screen.
+- The opening position of a window is no longer broadcast, so opening a second
+  window does not move the first.
+
+### Project
+
+- A release workflow: pushing a `v*` tag runs the checks, publishes to npm with
+  provenance, and creates the GitHub release.
+- Installs from GitHub build `dist/` through a `prepare` script.
+- A dependency-free QR encoder (`src/qr.ts`), verified against jsQR for every
+  error-correction level and versions 1–37.
 
 ### Beamer compatibility
 

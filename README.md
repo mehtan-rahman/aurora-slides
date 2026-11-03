@@ -50,8 +50,11 @@ it like a normal deck.
   mechanism step into the next: atoms glide, new bonds form, leaving groups drift off.
 - **One file to share.** The output is a single offline HTML file with no server
   or CDN. It includes a speaker view with notes and a timer, an overview grid, a
-  laser pointer, black screen, and deep links to any step. It also prints to
-  PDF: one page per frame, or one per overlay like Beamer.
+  laser pointer, a pen, black screen, a kiosk mode, and deep links to any step. It
+  also prints to PDF (one page per frame, or one per overlay like Beamer) and
+  renders to video.
+- **Present from your phone.** `aurora serve --remote` shows a QR code; scan it and
+  the phone becomes a remote with the notes, the timer, and next/back buttons.
 - **Built for AI agents too.** It has a machine-readable command reference, JSON
   diagnostics with line numbers, PNG snapshots with overflow detection, and an
   agent skill. See [For AI agents](#for-ai-agents).
@@ -81,6 +84,8 @@ In the browser:
 | `12` ⏎ | Go to slide 12 |
 | `b` / `w` | Black / white screen |
 | `l` | Laser pointer (also shown in the speaker window) |
+| `d` / `c` | Pen: draw on the slide (mirrored to the other windows) / clear the drawing |
+| `a` | Autoplay: clicks by itself every 5 s and loops. `\auroraautoplay{8}` sets the interval; `deck.html?autoplay` starts a kiosk |
 | `f` | Fullscreen |
 | ⌘P / Ctrl-P | Print or save as PDF, one page per frame |
 | `?` | Help |
@@ -91,6 +96,14 @@ In the speaker view:
 - `+` and `−` resize the notes.
 - `\note<2>{…}` shows a note only on step 2; a newly appeared note is marked.
 - `aurora pdf --notes` prints a notes page after each slide that has notes.
+
+From a phone: run `aurora serve deck.tex --remote`. It prints a QR code (also shown in
+the speaker view); scanning it opens the speaker view on the phone, laid out for a
+small screen with big next/back buttons. Every window served this way stays in sync
+through the server, so the laptop shows the slides while the phone drives them.
+
+Motion: with the system "reduce motion" setting (or `deck.html?nomotion`) every
+animation lands on its final frame at once.
 
 ## Writing slides
 
@@ -189,16 +202,22 @@ Every key is listed in **[docs/REFERENCE.md](docs/REFERENCE.md)** (`aurora refer
 
 ```
 aurora build <deck.tex> [-o out.html] [--handout] [--json]
-aurora serve <deck.tex> [--port 3000]
-aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout]
+aurora serve <deck.tex> [--port 3000] [--remote]
+aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout] [--notes]
+aurora video <deck.tex> [-o out.webm|out.mp4] [--slides 1,3-5] [--fps 30] [--hold 2] [--scale 1]
 aurora check <deck.tex> [--json] [--strict]
 aurora snapshot <deck.tex> [--out dir] [--slides 1,3-5] [--all-steps] [--json]
 aurora init [dir] [--template basic|talk|chemistry]
 aurora reference [--json | --md]
 ```
 
-`snapshot` and `pdf` use Playwright, an optional dependency:
+`snapshot`, `pdf` and `video` use Playwright, an optional dependency:
 `npm i -D playwright && npx playwright install chromium`.
+
+`video` plays every step, frame by frame with the engine's clock under control, so
+the result is the same on any machine: each click's animation, then `--hold` seconds
+still. It needs ffmpeg: the build Playwright installs (`npx playwright install ffmpeg`)
+writes WebM; a full ffmpeg (`brew install ffmpeg`) also writes H.264 `.mp4`.
 
 ## For AI agents
 
@@ -217,7 +236,8 @@ Aurora is designed so that a coding agent can write a deck end to end and check 
   runtime had to shrink to fit (`shrunk`), any that still overflow, and runtime errors.
 - **[`llms.txt`](llms.txt)** is a one-page index for LLMs.
 - In the browser, `window.aurora` exposes `next()`, `prev()`, `jump(slide, step)`,
-  `goto(label)`, `steps(slide)`, `busy()` and `printLayout()` for automation.
+  `enter(slide)`, `goto(label)`, `steps(slide)`, `busy()`, `printLayout()`,
+  `autoplay(on)`, `pen(on)`, and for frame capture `stepLength()` and `seek(ms)`.
 
 ## Examples
 

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // Aurora CLI. Run `aurora help` for usage.
-import { readFileSync, writeFileSync, watch, existsSync, mkdirSync, copyFileSync, mkdtempSync } from 'node:fs';
-import { createServer, type ServerResponse } from 'node:http';
-import { dirname, resolve, basename, join, relative } from 'node:path';
-import { tmpdir } from 'node:os';
+import { readFileSync, writeFileSync, watch, existsSync, mkdirSync, copyFileSync, mkdtempSync, readdirSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { dirname, resolve, basename, join, relative, extname } from 'node:path';
+import { tmpdir, networkInterfaces, homedir, platform } from 'node:os';
+import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { qrSvg, qrTerminal } from './qr.ts';
 import { parseDeck, formatDiagnostic, type Deck } from './deck.ts';
 import { emitHtml } from './emit.ts';
 import { initChem } from './chem.ts';
@@ -19,25 +21,30 @@ const HELP = `aurora ${VERSION}: Beamer .tex → manim-style animated HTML slide
 usage:
   aurora build <deck.tex> [-o out.html] [--handout] [--json]
                                                    compile to one self-contained HTML file
-  aurora serve <deck.tex> [--port 3000]            live-reloading preview server
+  aurora serve <deck.tex> [--port 3000] [--remote]  live-reloading preview server; --remote opens
+                                                   it to your network and prints a QR code so a
+                                                   phone can drive the talk (notes, timer, next/back)
   aurora check <deck.tex> [--json] [--strict]      parse and report problems without writing
   aurora pdf <deck.tex> [-o out.pdf] [--all-steps] [--handout] [--notes]
                                                    print to PDF, one page per frame (needs playwright)
   aurora snapshot <deck.tex> [--out dir] [--slides 1,3-5] [--all-steps] [--json]
                                                    render PNGs of slides (needs playwright)
+  aurora video <deck.tex> [-o out.webm|out.mp4] [--slides 1,3-5] [--fps 30] [--hold 2] [--scale 1]
+                                                   render the animated deck to a video (needs playwright; ffmpeg)
   aurora init [dir] [--template basic|talk|chemistry]   start a new deck (+ aurora.sty, AGENTS.md)
   aurora reference [--json | --md]                 every scene command and its keys
   aurora help | --version
 
 in the browser: → / space / click next · ← back · o overview · s speaker view · f fullscreen
-                b black screen · l laser pointer · 12⏎ go to slide 12 · ? help
+                b black screen · l laser pointer · d draw · c clear drawing · a autoplay
+                12⏎ go to slide 12 · ? help
 docs: README.md, docs/REFERENCE.md, AGENTS.md (for AI agents)`;
 
 const C = process.stdout.isTTY ? { y: '\x1b[33m', r: '\x1b[31m', g: '\x1b[32m', d: '\x1b[2m', x: '\x1b[0m' } : { y: '', r: '', g: '', d: '', x: '' };
 
 const args = process.argv.slice(2);
 const cmd = args[0];
-const VALUE_FLAGS = /^(-o|--out|--port|--template|--slides|--scale)$/;
+const VALUE_FLAGS = /^(-o|--out|--port|--host|--template|--slides|--scale|--fps|--hold)$/;
 const positional = args.slice(1).filter((a, i, arr) => !a.startsWith('-') && !(i > 0 && VALUE_FLAGS.test(arr[i - 1])));
 const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const has = (name: string) => args.includes(name);
@@ -88,6 +95,20 @@ function parseSlides(spec: string | undefined, n: number): number[] {
 
 async function loadOrFail(texPath: string): Promise<Deck> {
   try { return await load(texPath); } catch (e) { fail((e as Error).message); }
+}
+
+/** ffmpeg on PATH, or the build Playwright downloads for its own recordings (VP9 only). */
+function findFfmpeg(): string | null {
+  const exe = platform() === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  for (const dir of (process.env.PATH ?? '').split(platform() === 'win32' ? ';' : ':')) if (dir && existsSync(join(dir, exe))) return join(dir, exe);
+  const cache = process.env.PLAYWRIGHT_BROWSERS_PATH
+    || (platform() === 'darwin' ? join(homedir(), 'Library/Caches/ms-playwright') : platform() === 'win32' ? join(process.env.LOCALAPPDATA ?? '', 'ms-playwright') : join(homedir(), '.cache/ms-playwright'));
+  try {
+    for (const d of readdirSync(cache).filter((n) => n.startsWith('ffmpeg-')).sort().reverse()) {
+      for (const f of readdirSync(join(cache, d))) if (/^ffmpeg(-|\.|$)/.test(f)) return join(cache, d, f);
+    }
+  } catch { /* no cache */ }
+  return null;
 }
 
 async function main() {
@@ -148,8 +169,20 @@ async function main() {
 
   if (cmd === 'serve') {
     const port = Number(flag('--port') ?? 3000);
+    // --remote: listen on every interface so a phone on the same network can open the
+    // speaker view and drive the talk. The server relays navigation between all windows.
+    const remote = has('--remote');
+    const host = flag('--host') ?? (remote ? '0.0.0.0' : '127.0.0.1');
+    const lanIp = () => {
+      for (const list of Object.values(networkInterfaces())) for (const i of list ?? []) if (i.family === 'IPv4' && !i.internal) return i.address;
+      return null;
+    };
+    const remoteUrl = remote ? `http://${host === '0.0.0.0' ? lanIp() ?? '127.0.0.1' : host}:${port}/?presenter` : null;
     let html = '';
     const clients = new Set<ServerResponse>();
+    // Last known position, sent to windows that join late (a phone opened mid-talk).
+    let position: { s: number; k: number } | null = null;
+    const readBody = (req: IncomingMessage) => new Promise<string>((ok) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => ok(b)); });
     const rebuild = async () => {
       try {
         const t0 = performance.now();
@@ -171,17 +204,121 @@ async function main() {
       clearTimeout(timer);
       timer = setTimeout(rebuild, 150);
     });
-    createServer((req, res) => {
-      if (req.url === '/__aurora_events') {
+    createServer(async (req, res) => {
+      const path = (req.url ?? '/').split('?')[0];
+      if (path === '/__aurora_events') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
         res.write(': connected\n\n');
+        if (position) res.write(`data: ${JSON.stringify({ type: 'jump', ...position })}\n\n`);
         clients.add(res);
         req.on('close', () => clients.delete(res));
         return;
       }
+      if (path === '/__aurora_sync' && req.method === 'POST') {
+        // A window moved (or toggled the screen, or pointed the laser): tell the others.
+        const body = await readBody(req);
+        try {
+          const msg = JSON.parse(body);
+          if (typeof msg.s === 'number' && typeof msg.k === 'number' && (msg.type === 'next' || msg.type === 'jump')) position = { s: msg.s, k: msg.k };
+          for (const c of clients) c.write(`data: ${body}\n\n`);
+        } catch { /* ignore malformed */ }
+        res.writeHead(204); res.end();
+        return;
+      }
+      if (path === '/__aurora_remote') {
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ url: remoteUrl }));
+        return;
+      }
+      if (path === '/__aurora_qr.svg' && remoteUrl) {
+        res.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' });
+        res.end(qrSvg(remoteUrl, { fg: '#000', bg: '#fff' }));
+        return;
+      }
+      if (path === '/remote') { res.writeHead(302, { location: '/?presenter' }); res.end(); return; }
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(html);
-    }).listen(port, '127.0.0.1', () => console.log(`serving ${basename(texPath)} at ${C.g}http://127.0.0.1:${port}/${C.x}  (reloads on save, ctrl-c to stop)`));
+    }).listen(port, host, () => {
+      console.log(`serving ${basename(texPath)} at ${C.g}http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}/${C.x}  (reloads on save, ctrl-c to stop)`);
+      if (remoteUrl) console.log(`phone remote: ${C.g}${remoteUrl}${C.x}  (scan with the phone's camera; also shown in the speaker view)\n\n${qrTerminal(remoteUrl)}\n`);
+    });
+    return;
+  }
+
+  if (cmd === 'video') {
+    let pw: any;
+    try { const mod = 'playwright'; pw = await import(mod); } catch {
+      fail('video needs Playwright: npm i -D playwright && npx playwright install chromium');
+    }
+    const t0 = performance.now();
+    const deck = await loadOrFail(texPath);
+    const out = resolve(flag('-o') ?? texPath.replace(/\.tex$/, '') + '.webm');
+    const fps = Number(flag('--fps') ?? 30), hold = Number(flag('--hold') ?? 2), scale = Number(flag('--scale') ?? 1);
+    const ffmpeg = findFfmpeg();
+    if (!ffmpeg) fail('video needs ffmpeg: install it (brew install ffmpeg), or run `npx playwright install ffmpeg`');
+    const encoders = (() => { try { return execFileSync(ffmpeg, ['-hide_banner', '-encoders'], { encoding: 'utf8' }); } catch { return ''; } })();
+    const mp4 = extname(out).toLowerCase() === '.mp4';
+    if (mp4 && !/\blibx264\b/.test(encoders)) fail(`${ffmpeg} cannot encode H.264 (no libx264). Write a .webm instead, or install a full ffmpeg (brew install ffmpeg).`);
+    if (!mp4 && !/\blibvpx-vp9\b/.test(encoders)) fail(`${ffmpeg} cannot encode VP9. Write an .mp4 instead, or install a full ffmpeg.`);
+    const codec = mp4 ? ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-preset', 'medium', '-movflags', '+faststart'] : ['-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '30', '-row-mt', '1'];
+    // Lossless PNG frames when the ffmpeg can read them; Playwright's build only decodes JPEG.
+    const decoders = (() => { try { return execFileSync(ffmpeg, ['-hide_banner', '-decoders'], { encoding: 'utf8' }); } catch { return ''; } })();
+    const frameType: 'png' | 'jpeg' = /^\s*V[^\n]*\bpng\b/m.test(decoders) ? 'png' : 'jpeg';
+    // `pipe:0`, not `-`: ffmpeg ≥ 6.1 maps `-` to the `fd:` protocol, which minimal builds (Playwright's) lack.
+    const enc = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-vcodec', frameType === 'png' ? 'png' : 'mjpeg', '-framerate', String(fps), '-i', 'pipe:0', ...codec, out], { stdio: ['pipe', 'inherit', 'inherit'] });
+    enc.stdin.on('error', () => { /* reported through the exit code */ });
+    const encDone = new Promise<number>((ok) => enc.on('close', (code) => ok(code ?? 1)));
+    const tmp = join(mkdtempSync(join(tmpdir(), 'aurora-')), 'deck.html');
+    writeFileSync(tmp, emitHtml(deck));
+    const browser = await pw.chromium.launch();
+    const page = await browser.newPage({ viewport: { width: deck.meta.width, height: 1080 }, deviceScaleFactor: scale });
+    const errors: string[] = [];
+    page.on('pageerror', (e: Error) => errors.push(String(e)));
+    await page.goto(pathToFileURL(tmp).href + '?capture');
+    await page.waitForFunction(() => (window as any).aurora);
+    let frames = 0;
+    const write = (buf: Buffer) => new Promise<void>((ok, bad) => {
+      if (enc.exitCode !== null) { bad(new Error(`ffmpeg exited early with code ${enc.exitCode}`)); return; }
+      if (enc.stdin.write(buf)) ok();
+      else { const done = () => { enc.off('close', done); ok(); }; enc.stdin.once('drain', done); enc.once('close', done); }
+    });
+    // Every step is captured frame by frame with the engine's clock frozen, so the result
+    // is deterministic whatever the machine's speed: animation first, then `hold` seconds still.
+    // The move and the first seek happen in one evaluate, so no real frame slips in between.
+    const captureStep = async (len: number) => {
+      const n = Math.ceil((len + hold) * fps);
+      if (process.env.AURORA_DEBUG) console.error(`step: ${len.toFixed(2)} s animation + ${hold} s hold = ${n} frames`);
+      for (let f = 0; f < n; f++) {
+        await page.evaluate((ms: number) => (window as any).aurora.seek(ms), (f / fps) * 1000);
+        await write(await page.screenshot(frameType === 'png' ? { type: 'png' } : { type: 'jpeg', quality: 95 }));
+        frames++;
+      }
+    };
+    const chosen = parseSlides(flag('--slides'), deck.slides.length);
+    try {
+      for (const n of chosen) {
+        if (!json) process.stderr.write(`${C.d}slide ${n}/${deck.slides.length}${C.x}\r`);
+        // finish() first: a click during a running animation only completes it (as for a presenter).
+        await captureStep(await page.evaluate((s: number) => { const a = (window as any).aurora; a.finish(); a.enter(s); a.seek(0); return a.stepLength(); }, n - 1));
+        for (let k = 1; k < deck.slides[n - 1].steps; k++) {
+          await captureStep(await page.evaluate(() => { const a = (window as any).aurora; a.finish(); a.next(); a.seek(0); return a.stepLength(); }));
+        }
+      }
+    } catch (e) {
+      await browser.close().catch(() => {});
+      fail((e as Error).message);
+    }
+    await browser.close().catch(() => {});
+    enc.stdin.end();
+    const code = await encDone;
+    if (code !== 0) fail(`ffmpeg exited with code ${code}`);
+    const ms = Math.round(performance.now() - t0);
+    if (json) console.log(JSON.stringify({ ok: errors.length === 0, output: out, frames, seconds: frames / fps, ms, runtimeErrors: errors, warnings: deck.warnings }, null, 2));
+    else {
+      printWarnings(deck, texPath);
+      for (const e of errors) console.error(`${C.r}runtime error${C.x} ${e}`);
+      console.log(`wrote ${relative(process.cwd(), out)} ${C.d}(${chosen.length} slides, ${(frames / fps).toFixed(1)} s at ${fps} fps, ${ms} ms)${C.x}`);
+    }
     return;
   }
 

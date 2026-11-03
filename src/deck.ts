@@ -56,6 +56,8 @@ export interface DeckMeta {
   duration?: number;
   /** How a slide's first step appears: instantly (default, like Beamer) or 'fade' (\\auroraentrance{fade}). */
   entrance?: 'fade';
+  /** Kiosk mode: seconds between automatic clicks (\\auroraautoplay{5}); the deck loops. */
+  autoplay?: number;
 }
 
 export interface Deck {
@@ -343,6 +345,10 @@ export function parseDeck(input: string | Source, baseDir: string, opts: ParseOp
       return Number.isFinite(n) && n > 0 ? n : undefined;
     })(),
     entrance: preambleArg(pre, 'auroraentrance')?.long.trim() === 'fade' ? 'fade' : undefined,
+    autoplay: (() => {
+      const n = parseFloat(preambleArg(pre, 'auroraautoplay')?.long ?? '');
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    })(),
   };
   metaRef = meta;
 

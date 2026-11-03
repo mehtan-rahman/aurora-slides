@@ -21,7 +21,8 @@ aurora reference                    # every scene command, key, and default
    slide listed in `shrunk` (below 90%) or `overflowing` as too full: cut text,
    shrink the scene `size`, or split the frame.
 4. Repeat. To show the human, use `aurora serve deck.tex`, which live-reloads at
-   http://127.0.0.1:3000.
+   http://127.0.0.1:3000 (`--remote` adds a QR code for presenting from a phone).
+   `aurora video deck.tex` renders the animated deck to a `.webm` (or `.mp4`) file.
 
 ## How slides map
 
@@ -41,6 +42,7 @@ aurora reference                    # every scene command, key, and default
 | `\note{…}`, `\note<2>{…}` | Speaker notes (press `s` in the browser), optionally for one step; `\auroraduration{20}` sets the talk length for the countdown |
 | `\auroratheme{light}` in the preamble | Light palette (the default is dark) |
 | `\auroraentrance{fade}` in the preamble | Fade each slide's first-step content in (by default a new slide appears at once) |
+| `\auroraautoplay{8}` in the preamble | Kiosk mode interval: `a` in the browser (or `deck.html?autoplay`) clicks every 8 s and loops |
 | `\begin{scene}…\end{scene}` | Animated diagram (see below) |
 
 Full list and known differences: `docs/BEAMER.md` in the Aurora package.

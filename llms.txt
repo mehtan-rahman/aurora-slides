@@ -2,7 +2,7 @@
 
 > Aurora compiles Beamer LaTeX decks (.tex) into single-file, manim-style animated HTML presentations. It supports written equations, animated plots with value trackers, histograms, equation morphs, and organic-chemistry mechanisms (SMILES molecules, curly arrows, mechanism transforms). Existing Beamer decks compile unchanged: the full overlay syntax, \input files, sections and outlines, theorems, tables, highlighted listings, PDF figures, footnotes, BibTeX bibliographies and TikZ.
 
-CLI: `aurora build|serve|check|pdf|snapshot|init|reference`. All machine-facing commands accept `--json`.
+CLI: `aurora build|serve|check|pdf|video|snapshot|init|reference`. All machine-facing commands accept `--json`. In the browser: speaker view with notes, timer and next-step preview; phone remote (`serve --remote`); pen; autoplay; reduced motion.
 
 ## Docs
 

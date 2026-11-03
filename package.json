@@ -1,6 +1,6 @@
 {
   "name": "aurora-slides",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compile Beamer .tex decks into manim-style animated HTML presentations: written equations, animated plots, curly-arrow chemistry mechanisms.",
   "keywords": [
     "beamer",
