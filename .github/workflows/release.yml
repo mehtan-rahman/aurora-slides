@@ -6,6 +6,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch: # run by hand on a tag: gh workflow run release.yml --ref v0.2.0
 
 permissions:
   contents: write
