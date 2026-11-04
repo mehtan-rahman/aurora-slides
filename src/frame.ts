@@ -145,6 +145,8 @@ export function latexFigure(src: string, ctx: Ctx, display = true): string {
   const here = ctx.steps.here();
   if (!latexAvailable()) {
     ctx.warn('a LaTeX fragment (TikZ/chemfig/…) needs `latex` and `dvisvgm` on PATH; showing a placeholder');
+    // The placeholder still claims the fragment's overlay steps, so the slide count matches Beamer.
+    if (display && hasOverlays(src)) for (const k of changePoints(resolveRelative(src, ctx.steps))) if (k > here.from) ctx.steps.mark(k);
     return display ? `<div class="img-missing"${stepAttrs(here)}>LaTeX figure</div>` : '<span class="img-missing">LaTeX</span>';
   }
   const render = (body: string) => {
