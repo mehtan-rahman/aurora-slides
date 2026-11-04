@@ -28,10 +28,14 @@ jobs:
       - name: Check that the tag matches package.json
         run: |
           test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
-      - run: npm publish --provenance --access public
+      - name: Publish to npm (skipped when this version is already there)
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if npm view "aurora-slides@$v" version > /dev/null 2>&1; then echo "aurora-slides@$v is already published"; exit 0; fi
+          npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: GitHub release
-        run: gh release create "${GITHUB_REF_NAME}" --generate-notes
+      - name: GitHub release (skipped when it already exists)
+        run: gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
