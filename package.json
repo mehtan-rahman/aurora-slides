@@ -47,7 +47,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.ts\"",
     "examples": "node src/cli.ts build examples/demo.tex -o docs/demo.html && node src/cli.ts build examples/tour/deck.tex -o docs/tour.html",
     "check": "npm run typecheck && npm test && node src/cli.ts check examples/demo.tex --strict && node src/cli.ts check examples/tour/deck.tex --strict",
     "prepublishOnly": "npm run check && npm run build",
